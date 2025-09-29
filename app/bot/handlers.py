@@ -77,7 +77,10 @@ async def subscribe_command(message: types.Message):
 
 @router.callback_query(F.data == "daily")
 async def daily_message_handler(callback: types.CallbackQuery):
-    await callback.answer()
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback {callback.id}: {e}")
     logger.info(f"Daily message callback: {callback.data}")
 
     user = await UserModel.get_or_create_user(
@@ -107,7 +110,10 @@ async def daily_message_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "ask")
 async def ask_question_handler(callback: types.CallbackQuery):
-    await callback.answer()
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback {callback.id}: {e}")
 
     user = await UserModel.get_or_create_user(
         callback.from_user.id,
@@ -151,7 +157,12 @@ async def ask_question_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "subscription")
 async def subscription_handler(callback: types.CallbackQuery):
-    await callback.answer()
+    logger.info(f"Subscription callback received from user {callback.from_user.id}")
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback {callback.id}: {e}")
+        # Continue processing even if answer fails
 
     user = await UserModel.get_or_create_user(
         callback.from_user.id,
@@ -180,7 +191,10 @@ async def subscription_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("pay_"))
 async def payment_handler(callback: types.CallbackQuery):
-    await callback.answer()
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback {callback.id}: {e}")
     logger.info(f"Payment handler called for callback: {callback.data} from user {callback.from_user.id}")
 
     plan = callback.data.split("_")[1]  # week or month
@@ -218,7 +232,10 @@ async def payment_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "faq")
 async def faq_handler(callback: types.CallbackQuery):
-    await callback.answer()
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback {callback.id}: {e}")
 
     text = """
 ❓ **Часто задаваемые вопросы**
@@ -247,13 +264,19 @@ async def faq_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "menu")
 async def menu_handler(callback: types.CallbackQuery):
-    await callback.answer()
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback {callback.id}: {e}")
     await start_handler(callback.message)
 
 @router.callback_query()
 async def debug_callback_handler(callback: types.CallbackQuery):
     logger.info(f"Unhandled callback received: {callback.data} from user {callback.from_user.id}")
-    await callback.answer()
+    try:
+        await callback.answer()
+    except Exception as e:
+        logger.warning(f"Failed to answer callback {callback.id}: {e}")
 
 @router.message(lambda message: not message.text or not message.text.startswith('/'))
 async def question_handler(message: types.Message):
