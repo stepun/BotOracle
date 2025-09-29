@@ -78,6 +78,7 @@ async def subscribe_command(message: types.Message):
 @router.callback_query(F.data == "daily")
 async def daily_message_handler(callback: types.CallbackQuery):
     await callback.answer()
+    logger.info(f"Daily message callback: {callback.data}")
 
     user = await UserModel.get_or_create_user(
         callback.from_user.id,
@@ -244,6 +245,11 @@ async def faq_handler(callback: types.CallbackQuery):
 async def menu_handler(callback: types.CallbackQuery):
     await callback.answer()
     await start_handler(callback.message)
+
+@router.callback_query()
+async def debug_callback_handler(callback: types.CallbackQuery):
+    logger.info(f"Unhandled callback received: {callback.data} from user {callback.from_user.id}")
+    await callback.answer()
 
 @router.message(lambda message: not message.text or not message.text.startswith('/'))
 async def question_handler(message: types.Message):
