@@ -244,8 +244,10 @@ async def menu_handler(callback: types.CallbackQuery):
     await callback.answer()
     await start_handler(callback.message)
 
-@router.message(~Command())
+@router.message(lambda message: not message.text or not message.text.startswith('/'))
 async def question_handler(message: types.Message):
+    if not message.text:
+        return
     logger.info(f"Question handler received message: {message.text} from user {message.from_user.id}")
 
     user = await UserModel.get_or_create_user(
