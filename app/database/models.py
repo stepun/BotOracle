@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any
 from app.database.connection import db
 from app.config import config
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ class EventModel:
     async def log_event(user_id: Optional[int], event_type: str, meta: Dict[str, Any] = None):
         await db.execute(
             "INSERT INTO events (user_id, type, meta) VALUES ($1, $2, $3)",
-            user_id, event_type, meta or {}
+            user_id, event_type, json.dumps(meta or {})
         )
 
 class MetricsModel:
