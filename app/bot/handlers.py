@@ -49,15 +49,30 @@ async def start_handler(message: types.Message):
 
 @router.message(Command("subscribe"))
 async def subscribe_command(message: types.Message):
-    # Create fake callback to reuse existing handler
-    fake_callback = types.CallbackQuery(
-        id="fake",
-        from_user=message.from_user,
-        chat_instance="fake",
-        data="subscription",
-        message=message
+    user = await UserModel.get_or_create_user(
+        message.from_user.id,
+        message.from_user.username
     )
-    await subscription_handler(fake_callback)
+
+    subscription = await SubscriptionModel.get_active_subscription(user['id'])
+
+    if subscription:
+        end_date = subscription['ends_at'].strftime("%d.%m.%Y %H:%M")
+        text = f"✅ **Ваша подписка активна до:** {end_date}\n\n"
+        text += "Вы можете продлить подписку или задать вопрос."
+    else:
+        text = "💳 **Выберите тариф подписки:**\n\n"
+        text += f"📅 **Неделя** — {config.WEEK_PRICE} ₽\n"
+        text += f"📆 **Месяц** — {config.MONTH_PRICE} ₽\n\n"
+        text += "После оплаты вы сможете задавать персональные вопросы!"
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text=f"📅 Неделя — {config.WEEK_PRICE} ₽", callback_data="pay_week")
+    kb.button(text=f"📆 Месяц — {config.MONTH_PRICE} ₽", callback_data="pay_month")
+    kb.button(text="🏠 Главное меню", callback_data="menu")
+    kb.adjust(1)
+
+    await message.answer(text, reply_markup=kb.as_markup(), parse_mode="Markdown")
 
 @router.callback_query(F.data == "daily")
 async def daily_message_handler(callback: types.CallbackQuery):
