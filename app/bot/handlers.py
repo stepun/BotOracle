@@ -246,6 +246,7 @@ async def menu_handler(callback: types.CallbackQuery):
 
 @router.message(~Command())
 async def question_handler(message: types.Message):
+    logger.info(f"Question handler received message: {message.text} from user {message.from_user.id}")
 
     user = await UserModel.get_or_create_user(
         message.from_user.id,
