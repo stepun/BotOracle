@@ -195,7 +195,11 @@ async def payment_handler(callback: types.CallbackQuery):
     plan_code = "WEEK" if plan == "week" else "MONTH"
     inv_id = f"{user['id']}_{plan}_{int(datetime.now().timestamp())}"
 
-    description = f"Подписка {plan_code.lower()} для @{callback.from_user.username or callback.from_user.id}"
+    # Avoid special characters in description for Robokassa
+    username = callback.from_user.username or str(callback.from_user.id)
+    # Remove @ symbol and use only safe characters
+    username = username.replace('@', '').replace(' ', '')
+    description = f"Subscription {plan} for user {username}"
 
     payment_url = generate_payment_url(amount, inv_id, description)
 
