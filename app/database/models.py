@@ -267,8 +267,8 @@ class PaymentModel:
     async def create_payment(user_id: int, inv_id: int, plan_code: str, amount: float) -> int:
         payment_id = await db.fetchval(
             """
-            INSERT INTO payments (user_id, inv_id, plan_code, amount, status)
-            VALUES ($1, $2, $3, $4, 'pending')
+            INSERT INTO payments (user_id, inv_id, plan_code, amount, status, created_at)
+            VALUES ($1, $2, $3, $4, 'pending', now())
             RETURNING id
             """,
             user_id, inv_id, plan_code, amount
