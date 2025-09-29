@@ -7,6 +7,7 @@ import logging
 from app.database.models import MetricsModel
 from app.database.connection import db
 from app.config import config
+from app.scheduler import get_scheduler
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -194,6 +195,19 @@ async def export_stats(
     except Exception as e:
         logger.error(f"Error exporting stats: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/admin/trigger/daily-messages")
+async def trigger_daily_messages(_: bool = Depends(verify_admin_token)):
+    try:
+        scheduler = get_scheduler()
+        if scheduler:
+            await scheduler.trigger_daily_messages()
+            return {"status": "success", "message": "Daily messages triggered successfully"}
+        else:
+            return {"status": "error", "message": "Scheduler not available"}
+    except Exception as e:
+        logger.error(f"Error triggering daily messages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to trigger daily messages")
 
 @router.get("/health")
 async def health_check():

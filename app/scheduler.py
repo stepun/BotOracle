@@ -14,10 +14,10 @@ class SchedulerService:
         self.bot = bot
 
     async def start(self):
-        # Daily message sending at 9:00 AM
+        # Daily message sending at 19:41 Minsk time (16:41 UTC)
         self.scheduler.add_job(
             self.send_daily_messages,
-            CronTrigger(hour=9, minute=0),
+            CronTrigger(hour=16, minute=41),
             id='daily_messages',
             name='Send daily messages to all users'
         )
