@@ -16,10 +16,11 @@ class UserModel:
         )
 
         if not user:
+            # Set daily message time to current time + 5 minutes
             await db.execute(
                 """
-                INSERT INTO users (tg_user_id, username, first_seen_at, free_questions_left)
-                VALUES ($1, $2, now(), $3)
+                INSERT INTO users (tg_user_id, username, first_seen_at, free_questions_left, daily_message_time)
+                VALUES ($1, $2, now(), $3, (CURRENT_TIME + INTERVAL '5 minutes')::TIME)
                 """,
                 tg_user_id, username, config.FREE_QUESTIONS
             )

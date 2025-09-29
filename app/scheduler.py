@@ -14,12 +14,12 @@ class SchedulerService:
         self.bot = bot
 
     async def start(self):
-        # Daily message sending at 19:41 Minsk time (16:41 UTC)
+        # Check for daily messages every minute
         self.scheduler.add_job(
-            self.send_daily_messages,
-            CronTrigger(hour=16, minute=41),
+            self.send_daily_messages_by_user_time,
+            CronTrigger(minute='*'),  # Run every minute
             id='daily_messages',
-            name='Send daily messages to all users'
+            name='Send daily messages based on user time'
         )
 
         # Daily metrics calculation at 23:55
@@ -45,6 +45,88 @@ class SchedulerService:
         if self.scheduler.running:
             self.scheduler.shutdown()
             logger.info("Scheduler stopped")
+
+    async def send_daily_messages_by_user_time(self):
+        """Send daily messages to users based on their individual time settings"""
+        from datetime import time
+        current_time = datetime.now().time()
+        current_hour = current_time.hour
+        current_minute = current_time.minute
+
+        logger.info(f"Checking for users to send daily messages at {current_hour:02d}:{current_minute:02d}")
+
+        try:
+            # Get random daily message
+            daily_message = await DailyMessageModel.get_random_message()
+            if not daily_message:
+                logger.warning("No daily messages available")
+                return
+
+            # Find users who should receive message at this time
+            users = await db.fetch(
+                """
+                SELECT u.id, u.tg_user_id, u.daily_message_time
+                FROM users u
+                WHERE u.is_blocked = false
+                AND u.daily_message_time IS NOT NULL
+                AND EXTRACT(HOUR FROM u.daily_message_time) = $1
+                AND EXTRACT(MINUTE FROM u.daily_message_time) = $2
+                AND NOT EXISTS (
+                    SELECT 1 FROM daily_sent ds
+                    WHERE ds.user_id = u.id AND ds.sent_date = CURRENT_DATE
+                )
+                """,
+                current_hour, current_minute
+            )
+
+            if not users:
+                return
+
+            logger.info(f"Found {len(users)} users to send messages to at {current_hour:02d}:{current_minute:02d}")
+
+            sent_count = 0
+            blocked_count = 0
+
+            for user in users:
+                try:
+                    # Send message
+                    text = f"📨 **Сообщение дня:**\n\n{daily_message['text']}"
+                    await self.bot.send_message(
+                        user['tg_user_id'],
+                        text,
+                        parse_mode="Markdown"
+                    )
+
+                    # Mark as sent
+                    await DailyMessageModel.mark_sent(user['id'], daily_message['id'])
+
+                    # Log event
+                    await EventModel.log_event(
+                        user_id=user['id'],
+                        event_type='daily_sent',
+                        meta={'message_id': daily_message['id'], 'scheduled_time': str(user['daily_message_time'])}
+                    )
+
+                    sent_count += 1
+
+                except Exception as e:
+                    if "blocked" in str(e).lower() or "forbidden" in str(e).lower():
+                        # User blocked the bot
+                        await UserModel.set_blocked(user['id'], True)
+                        await EventModel.log_event(
+                            user_id=user['id'],
+                            event_type='message_failed_blocked'
+                        )
+                        blocked_count += 1
+                        logger.info(f"User {user['tg_user_id']} blocked the bot")
+                    else:
+                        logger.error(f"Failed to send daily message to user {user['tg_user_id']}: {e}")
+
+            if sent_count > 0:
+                logger.info(f"Daily messages sent at {current_hour:02d}:{current_minute:02d}: {sent_count} sent, {blocked_count} blocked")
+
+        except Exception as e:
+            logger.error(f"Error during daily message distribution by user time: {e}")
 
     async def send_daily_messages(self):
         logger.info("Starting daily message distribution")

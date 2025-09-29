@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   tz TEXT DEFAULT 'UTC',
   is_blocked BOOLEAN DEFAULT FALSE,
   blocked_at TIMESTAMP,
-  free_questions_left INT DEFAULT 5
+  free_questions_left INT DEFAULT 5,
+  daily_message_time TIME DEFAULT '09:00:00'
 );
 
 CREATE TABLE IF NOT EXISTS subscriptions (
