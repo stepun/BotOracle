@@ -180,6 +180,7 @@ async def subscription_handler(callback: types.CallbackQuery):
 @router.callback_query(F.data.startswith("pay_"))
 async def payment_handler(callback: types.CallbackQuery):
     await callback.answer()
+    logger.info(f"Payment handler called for callback: {callback.data} from user {callback.from_user.id}")
 
     plan = callback.data.split("_")[1]  # week or month
 
