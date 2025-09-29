@@ -1,151 +1,144 @@
+"""
+Bot Oracle Main Application
+Runs both Telegram bot and FastAPI web server with enhanced CRM functionality
+"""
 import asyncio
 import logging
-from contextlib import asynccontextmanager
-
+import os
 from aiogram import Bot, Dispatcher
-from aiogram.types import Update
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-
-from app.config import config
-from app.database.connection import db
-from app.bot.handlers import setup_handlers
-from app.bot.admin import setup_admin_handlers
-from app.api.robokassa import router as robokassa_router
-from app.api.admin import router as admin_router
-from app.scheduler import init_scheduler
+from aiogram.fsm.storage.memory import MemoryStorage
+from fastapi import FastAPI
+import uvicorn
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('/app/logs/bot.log'),
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-
 logger = logging.getLogger(__name__)
 
-# Global variables
-bot = None
-dp = None
-scheduler = None
+# Import configuration
+from app.config import config
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    global bot, dp, scheduler
+# Import database
+from app.database.connection import init_db
 
-    logger.info("Starting application...")
+# Import bot components
+from app.bot.onboarding import router as onboarding_router
+from app.bot.oracle_handlers import router as oracle_router
 
-    # Connect to database
-    await db.connect()
+# Import API components
+from app.api.admin import router as admin_router
+from app.api.robokassa import router as robokassa_router
 
-    # Initialize bot
-    bot = Bot(token=config.BOT_TOKEN)
-    dp = Dispatcher()
+# Import scheduler
+from app.scheduler import init_scheduler
 
-    # Setup handlers (admin handlers first to have higher priority)
-    setup_admin_handlers(dp)
-    setup_handlers(dp)
+# Configuration
+BOT_TOKEN = config.BOT_TOKEN
+BASE_URL = os.getenv("BASE_URL", "https://consultant.sh3.su")
 
-    # Initialize scheduler
-    scheduler = init_scheduler(bot)
-    await scheduler.start()
-
-    # Set webhook if configured
-    if config.WEBHOOK_HOST:
-        webhook_url = f"{config.WEBHOOK_HOST}{config.WEBHOOK_PATH}"
-        await bot.set_webhook(url=webhook_url)
-        logger.info(f"Webhook set to {webhook_url}")
-    else:
-        # Start polling for development
-        logger.info("Starting bot in polling mode")
-        asyncio.create_task(dp.start_polling(bot))
-
-    logger.info("Application startup completed")
-
-    yield
-
-    # Shutdown
-    logger.info("Shutting down application...")
-
-    if scheduler:
-        await scheduler.stop()
-
-    if bot:
-        await bot.session.close()
-
-    await db.disconnect()
-
-    logger.info("Application shutdown completed")
-
-# FastAPI app
+# Create FastAPI app
 app = FastAPI(
-    title="AI Consultant Bot API",
-    description="Telegram bot with subscription and GPT integration",
-    version="1.0.0",
-    lifespan=lifespan
+    title="Bot Oracle API",
+    description="API for Bot Oracle - Telegram bot with Administrator and Oracle personas",
+    version="2.0.0"
 )
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers
-app.include_router(robokassa_router)
+# Include API routers
 app.include_router(admin_router)
+app.include_router(robokassa_router)
 
-# Webhook handler
-@app.post(config.WEBHOOK_PATH)
-async def webhook_handler(request: Request):
+async def create_bot_app():
+    """Create and configure bot application"""
+    # Initialize bot
+    bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
+
+    # Create dispatcher with FSM storage
+    dp = Dispatcher(storage=MemoryStorage())
+
+    # Include routers
+    dp.include_router(onboarding_router)
+    dp.include_router(oracle_router)
+
+    logger.info("Bot configured with onboarding and oracle handlers")
+
+    return bot, dp
+
+# Global bot instance for webhook
+bot_instance = None
+dp_instance = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize bot and scheduler on app startup"""
+    global bot_instance, dp_instance
+
     try:
-        data = await request.json()
-        update = Update(**data)
-        logger.info(f"Webhook received update: {update.update_id}, message: {getattr(update.message, 'text', None) if update.message else None}")
-        await dp.feed_webhook_update(bot, update)
-        return {"status": "ok"}
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        raise HTTPException(status_code=500, detail="Webhook processing error")
+        logger.info("🤖 Bot Oracle starting...")
+        logger.info("🎭 Two-persona system: Administrator + Oracle")
+        logger.info("🎯 CRM proactive engagement enabled")
+        logger.info("👥 Personalized interactions based on user demographics")
 
-# Root endpoint
+        # Initialize database
+        await init_db()
+
+        # Create bot and dispatcher
+        bot_instance, dp_instance = await create_bot_app()
+
+        # Initialize and start scheduler
+        scheduler = init_scheduler(bot_instance)
+        await scheduler.start()
+
+        # Set webhook
+        webhook_url = f"{BASE_URL}/webhook"
+        await bot_instance.set_webhook(webhook_url)
+
+        logger.info(f"Webhook set to {webhook_url}")
+        logger.info("Bot Oracle startup completed!")
+
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on app shutdown"""
+    global bot_instance
+
+    try:
+        logger.info("Bot Oracle shutting down...")
+
+        if bot_instance:
+            await bot_instance.delete_webhook()
+            await bot_instance.session.close()
+
+        logger.info("Bot Oracle shutdown completed")
+
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+
+@app.post("/webhook")
+async def webhook_handler(update: dict):
+    """Handle incoming webhook updates"""
+    global dp_instance
+
+    if dp_instance:
+        from aiogram.types import Update
+        telegram_update = Update(**update)
+        await dp_instance.feed_update(bot=bot_instance, update=telegram_update)
+
+    return {"status": "ok"}
+
 @app.get("/")
 async def root():
+    """Health check endpoint"""
     return {
-        "service": "AI Consultant Bot",
-        "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "service": "Bot Oracle",
+        "version": "2.0.0"
     }
 
 if __name__ == "__main__":
     import uvicorn
-
-    # Check required configuration
-    if not config.BOT_TOKEN:
-        logger.error("BOT_TOKEN is not configured")
-        exit(1)
-
-    if not config.DATABASE_URL:
-        logger.error("DATABASE_URL is not configured")
-        exit(1)
-
-    logger.info(f"Starting server on port 8000")
-    logger.info(f"Webhook mode: {bool(config.WEBHOOK_HOST)}")
-    logger.info(f"Database: {config.DATABASE_URL}")
-
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=False,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
