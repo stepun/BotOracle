@@ -249,15 +249,18 @@ async def admin_stats(message: types.Message):
         return
 
     try:
-        # Общая статистика
-        total_users = await db.fetchval("SELECT COUNT(*) FROM users")
+        # Extract bot ID from token to exclude bot from statistics
+        bot_id = int(config.BOT_TOKEN.split(':')[0]) if config.BOT_TOKEN else 0
+
+        # Общая статистика (исключаем бота)
+        total_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE tg_user_id != $1", bot_id)
         active_subs = await db.fetchval("SELECT COUNT(*) FROM subscriptions WHERE status = 'active' AND ends_at > now()")
         total_questions = await db.fetchval("SELECT COUNT(*) FROM questions")
-        blocked_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE is_blocked = true")
+        blocked_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE is_blocked = true AND tg_user_id != $1", bot_id)
 
-        # Статистика за сегодня
+        # Статистика за сегодня (исключаем бота)
         today = date.today()
-        today_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE DATE(first_seen_at) = $1", today)
+        today_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE DATE(first_seen_at) = $1 AND tg_user_id != $2", today, bot_id)
         today_questions = await db.fetchval("SELECT COUNT(*) FROM questions WHERE DATE(created_at) = $1", today)
 
         text = f"""📊 **Статистика бота**
@@ -289,14 +292,19 @@ async def admin_users(message: types.Message):
         return
 
     try:
+        # Extract bot ID from token to exclude bot from user list
+        bot_id = int(config.BOT_TOKEN.split(':')[0]) if config.BOT_TOKEN else 0
+
         rows = await db.fetch(
             """
             SELECT tg_user_id, username, first_seen_at, last_seen_at, is_blocked,
                    (SELECT COUNT(*) FROM questions WHERE questions.user_id = users.id) as questions_count
             FROM users
+            WHERE tg_user_id != $1
             ORDER BY first_seen_at DESC
             LIMIT 50
-            """
+            """,
+            bot_id
         )
 
         if not rows:
