@@ -110,6 +110,7 @@ async def webhook_handler(request: Request):
     try:
         data = await request.json()
         update = Update(**data)
+        logger.info(f"Webhook received update: {update.update_id}, message: {getattr(update.message, 'text', None) if update.message else None}")
         await dp.feed_webhook_update(bot, update)
         return {"status": "ok"}
     except Exception as e:
