@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, Form
 from typing import Dict, Any
 import logging
 
-from app.database.models import UserModel, SubscriptionModel, EventModel
+from app.database.models import UserModel, SubscriptionModel, EventModel, PaymentModel
 from app.utils.robokassa import verify_signature_result, parse_robokassa_callback
 from app.config import config
 
@@ -34,21 +34,24 @@ async def robokassa_result(request: Request):
             logger.warning(f"Invalid signature for payment {inv_id}")
             raise HTTPException(status_code=400, detail="Invalid signature")
 
-        # Parse invoice ID to get user info
-        # Format: {user_id}_{plan}_{timestamp}
+        # Get payment info from database using numeric inv_id
         try:
-            parts = inv_id.split('_')
-            user_id = int(parts[0])
-            plan = parts[1]  # week or month
-            plan_code = "WEEK" if plan == "week" else "MONTH"
-        except (ValueError, IndexError):
+            inv_id_int = int(inv_id)
+            payment = await PaymentModel.get_payment_by_inv_id(inv_id_int)
+            if not payment:
+                logger.error(f"Payment not found for invoice ID: {inv_id}")
+                raise HTTPException(status_code=400, detail="Payment not found")
+
+            user_id = payment['user_id']
+            plan_code = payment['plan_code']
+        except (ValueError, TypeError):
             logger.error(f"Invalid invoice ID format: {inv_id}")
             raise HTTPException(status_code=400, detail="Invalid invoice ID")
 
         # Process payment
         await process_successful_payment(
             user_id=user_id,
-            inv_id=inv_id,
+            inv_id=inv_id_int,
             plan_code=plan_code,
             amount=float(amount),
             raw_payload=form_data
@@ -73,9 +76,12 @@ async def robokassa_fail(request: Request):
     # Fail redirect - show error page
     return {"status": "error", "message": "Оплата не прошла. Попробуйте еще раз."}
 
-async def process_successful_payment(user_id: int, inv_id: str, plan_code: str,
+async def process_successful_payment(user_id: int, inv_id: int, plan_code: str,
                                    amount: float, raw_payload: Dict[str, Any]):
     try:
+        # Mark payment as successful
+        await PaymentModel.mark_payment_success(inv_id, raw_payload)
+
         # Save payment record
         await EventModel.log_event(
             user_id=user_id,

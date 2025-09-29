@@ -4,7 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from datetime import datetime
 import uuid
 
-from app.database.models import UserModel, SubscriptionModel, QuestionModel, DailyMessageModel
+from app.database.models import UserModel, SubscriptionModel, QuestionModel, DailyMessageModel, PaymentModel
 from app.utils.gpt import get_gpt_response
 from app.utils.robokassa import generate_payment_url
 from app.config import config
@@ -207,7 +207,11 @@ async def payment_handler(callback: types.CallbackQuery):
     # Generate payment
     amount = config.WEEK_PRICE if plan == "week" else config.MONTH_PRICE
     plan_code = "WEEK" if plan == "week" else "MONTH"
-    inv_id = f"{user['id']}_{plan}_{int(datetime.now().timestamp())}"
+    # Generate unique numeric invoice ID for Robokassa (must be 1-2147483647)
+    inv_id = int(datetime.now().timestamp())
+
+    # Create payment record in database
+    await PaymentModel.create_payment(user['id'], inv_id, plan_code, amount)
 
     # Avoid special characters in description for Robokassa
     username = callback.from_user.username or str(callback.from_user.id)

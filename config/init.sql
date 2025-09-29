@@ -27,8 +27,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE TABLE IF NOT EXISTS payments (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  inv_id TEXT UNIQUE,
+  inv_id BIGINT UNIQUE,                       -- Robokassa invoice ID (numeric)
+  plan_code TEXT NOT NULL,                    -- 'WEEK', 'MONTH'
+  amount NUMERIC(10,2) NOT NULL,
   status TEXT DEFAULT 'pending',              -- 'success','fail','pending'
+  created_at TIMESTAMP DEFAULT now(),
   paid_at TIMESTAMP,
   raw_payload JSONB
 );

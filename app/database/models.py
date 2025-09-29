@@ -260,3 +260,46 @@ class MetricsModel:
             metrics['blocked_total'], metrics['daily_sent'], metrics['paid_active'],
             metrics['paid_new'], metrics['questions'], metrics['revenue']
         )
+
+
+class PaymentModel:
+    @staticmethod
+    async def create_payment(user_id: int, inv_id: int, plan_code: str, amount: float) -> int:
+        payment_id = await db.fetchval(
+            """
+            INSERT INTO payments (user_id, inv_id, plan_code, amount, status)
+            VALUES ($1, $2, $3, $4, 'pending')
+            RETURNING id
+            """,
+            user_id, inv_id, plan_code, amount
+        )
+        return payment_id
+
+    @staticmethod
+    async def get_payment_by_inv_id(inv_id: int):
+        return await db.fetchrow(
+            "SELECT * FROM payments WHERE inv_id = $1",
+            inv_id
+        )
+
+    @staticmethod
+    async def mark_payment_success(inv_id: int, raw_payload: dict = None):
+        await db.execute(
+            """
+            UPDATE payments
+            SET status = 'success', paid_at = now(), raw_payload = $2
+            WHERE inv_id = $1
+            """,
+            inv_id, raw_payload
+        )
+
+    @staticmethod
+    async def mark_payment_failed(inv_id: int, raw_payload: dict = None):
+        await db.execute(
+            """
+            UPDATE payments
+            SET status = 'failed', raw_payload = $2
+            WHERE inv_id = $1
+            """,
+            inv_id, raw_payload
+        )
