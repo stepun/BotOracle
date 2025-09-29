@@ -48,9 +48,9 @@ async def lifespan(app: FastAPI):
     bot = Bot(token=config.BOT_TOKEN)
     dp = Dispatcher()
 
-    # Setup handlers
-    setup_handlers(dp)
+    # Setup handlers (admin handlers first to have higher priority)
     setup_admin_handlers(dp)
+    setup_handlers(dp)
 
     # Initialize scheduler
     scheduler = init_scheduler(bot)
