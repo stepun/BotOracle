@@ -7,8 +7,8 @@ set -e
 
 # Configuration
 REMOTE_HOST="Pi4-2"
-REMOTE_USER="pi"
-REMOTE_PATH="/home/pi/ai-consultant"
+REMOTE_USER="lexun"
+REMOTE_PATH="/home/lexun/ai-consultant"
 REPO_URL="git@NTMY:stepun/ai-consultant.git"
 
 echo "🚀 Starting deployment to Pi4-2..."
@@ -25,7 +25,7 @@ ssh $REMOTE_USER@$REMOTE_HOST << 'ENDSSH'
 set -e
 
 # Navigate to app directory
-cd /home/pi/ai-consultant || { echo "Creating directory..."; mkdir -p /home/pi/ai-consultant; cd /home/pi/ai-consultant; }
+cd /home/lexun/ai-consultant || { echo "Creating directory..."; mkdir -p /home/lexun/ai-consultant; cd /home/lexun/ai-consultant; }
 
 # Pull latest changes
 if [ -d ".git" ]; then
@@ -67,12 +67,12 @@ fi
 
 # Stop existing containers
 echo "🛑 Stopping existing containers..."
-docker-compose -f docker-compose.prod.yml down 2>/dev/null || true
+docker compose -f docker-compose.prod.yml down 2>/dev/null || true
 
 # Build and start containers
 echo "🔨 Building and starting containers..."
-docker-compose -f docker-compose.prod.yml build --no-cache
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
 
 # Wait for services to start
 echo "⏳ Waiting for services to start..."
@@ -80,15 +80,15 @@ sleep 10
 
 # Check if services are running
 echo "🔍 Checking service status..."
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Setup cron for SSL renewal
 echo "🔄 Setting up SSL renewal cron..."
-(crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet && docker-compose -f /home/pi/ai-consultant/docker-compose.prod.yml restart nginx") | crontab -
+(crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet && docker compose -f /home/lexun/ai-consultant/docker-compose.prod.yml restart nginx") | crontab -
 
 echo "✅ Deployment completed successfully!"
 echo "📊 Service status:"
-docker-compose -f docker-compose.prod.yml logs --tail=20
+docker compose -f docker-compose.prod.yml logs --tail=20
 
 ENDSSH
 
