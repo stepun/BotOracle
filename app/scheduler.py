@@ -1,23 +1,47 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import date, datetime
+import os
 import logging
 
 from app.database.models import DailyMessageModel, UserModel, EventModel, MetricsModel
 from app.database.connection import db
+from app.crm.planner import plan_daily_tasks
+from app.crm.dispatcher import dispatch_due_tasks, init_dispatcher
 
 logger = logging.getLogger(__name__)
+
+# Configuration
+DISPATCH_INTERVAL_SECONDS = int(os.getenv("DISPATCH_INTERVAL_SECONDS", "60"))
 
 class SchedulerService:
     def __init__(self, bot):
         self.scheduler = AsyncIOScheduler()
         self.bot = bot
+        # Initialize CRM dispatcher
+        init_dispatcher(bot)
 
     async def start(self):
-        # Check for daily messages every minute
+        # CRM daily task planning at 6:00 AM
+        self.scheduler.add_job(
+            plan_daily_tasks,
+            CronTrigger(hour=6, minute=0),
+            id='crm_daily_planning',
+            name='Generate daily CRM tasks for all users'
+        )
+
+        # CRM task dispatcher (every minute)
+        self.scheduler.add_job(
+            dispatch_due_tasks,
+            CronTrigger(minute='*'),
+            id='crm_dispatcher',
+            name='Execute due CRM tasks'
+        )
+
+        # Check for daily messages every minute (legacy - may be replaced by CRM)
         self.scheduler.add_job(
             self.send_daily_messages_by_user_time,
-            CronTrigger(minute='*'),  # Run every minute
+            CronTrigger(minute='*'),
             id='daily_messages',
             name='Send daily messages based on user time'
         )
@@ -39,7 +63,7 @@ class SchedulerService:
         )
 
         self.scheduler.start()
-        logger.info("Scheduler started with jobs: daily messages, metrics, subscription cleanup")
+        logger.info("Scheduler started with jobs: CRM planning, CRM dispatcher, daily messages, metrics, subscription cleanup")
 
     async def stop(self):
         if self.scheduler.running:
@@ -232,6 +256,14 @@ class SchedulerService:
 
     async def trigger_metrics_calculation(self):
         await self.calculate_daily_metrics()
+
+    async def trigger_crm_planning(self):
+        """Manually trigger CRM daily planning"""
+        return await plan_daily_tasks()
+
+    async def trigger_crm_dispatch(self):
+        """Manually trigger CRM task dispatch"""
+        return await dispatch_due_tasks()
 
 scheduler_service = None
 

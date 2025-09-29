@@ -16,11 +16,11 @@ class UserModel:
         )
 
         if not user:
-            # Set daily message time to current time + 5 minutes
+            # Create new user with 5 free questions, no profile yet
             await db.execute(
                 """
-                INSERT INTO users (tg_user_id, username, first_seen_at, free_questions_left, daily_message_time)
-                VALUES ($1, $2, now(), $3, (CURRENT_TIME + INTERVAL '5 minutes')::TIME)
+                INSERT INTO users (tg_user_id, username, first_seen_at, free_questions_left)
+                VALUES ($1, $2, now(), $3)
                 """,
                 tg_user_id, username, config.FREE_QUESTIONS
             )
@@ -37,6 +37,46 @@ class UserModel:
             )
 
         return dict(user)
+
+    @staticmethod
+    async def get_by_tg_id(tg_user_id: int) -> Optional[dict]:
+        """Get user by telegram ID"""
+        user = await db.fetchrow(
+            "SELECT * FROM users WHERE tg_user_id = $1",
+            tg_user_id
+        )
+        return dict(user) if user else None
+
+    @staticmethod
+    async def update_profile(tg_user_id: int, age: int, gender: str):
+        """Update user profile with age and gender"""
+        await db.execute(
+            "UPDATE users SET age = $1, gender = $2 WHERE tg_user_id = $3",
+            age, gender, tg_user_id
+        )
+
+    @staticmethod
+    async def init_user_preferences(user_id: int):
+        """Initialize user preferences and cadence settings"""
+        # Create user preferences if not exists
+        await db.execute(
+            """
+            INSERT INTO user_prefs (user_id)
+            VALUES ($1)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
+            user_id
+        )
+
+        # Create contact cadence if not exists
+        await db.execute(
+            """
+            INSERT INTO contact_cadence (user_id)
+            VALUES ($1)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
+            user_id
+        )
 
     @staticmethod
     async def update_last_seen(user_id: int):
@@ -261,6 +301,168 @@ class MetricsModel:
             metrics['blocked_total'], metrics['daily_sent'], metrics['paid_active'],
             metrics['paid_new'], metrics['questions'], metrics['revenue']
         )
+
+
+class OracleQuestionModel:
+    @staticmethod
+    async def save_question(user_id: int, question: str, answer: str, source: str = 'FREE', tokens: int = 0):
+        """Save oracle question and answer"""
+        await db.execute(
+            """
+            INSERT INTO oracle_questions (user_id, question, answer, source, tokens_used)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            user_id, question, answer, source, tokens
+        )
+
+        await EventModel.log_event(
+            user_id=user_id,
+            event_type='oracle_answer',
+            meta={'source': source, 'tokens': tokens}
+        )
+
+    @staticmethod
+    async def count_today_questions(user_id: int, source: str = 'SUB') -> int:
+        """Count Oracle questions asked today for subscription users"""
+        count = await db.fetchval(
+            """
+            SELECT COUNT(*) FROM oracle_questions
+            WHERE user_id = $1 AND asked_date = CURRENT_DATE AND source = $2
+            """,
+            user_id, source
+        )
+        return count or 0
+
+
+class AdminTaskModel:
+    @staticmethod
+    async def create_task(user_id: int, task_type: str, due_at: datetime = None, payload: dict = None):
+        """Create new admin task"""
+        task_id = await db.fetchval(
+            """
+            INSERT INTO admin_tasks (user_id, type, due_at, payload, created_at)
+            VALUES ($1, $2, $3, $4, now())
+            RETURNING id
+            """,
+            user_id, task_type, due_at, json.dumps(payload or {})
+        )
+
+        await EventModel.log_event(
+            user_id=user_id,
+            event_type='admin_task_created',
+            meta={'task_id': task_id, 'type': task_type}
+        )
+
+        return task_id
+
+    @staticmethod
+    async def get_due_tasks(limit: int = 100):
+        """Get tasks that are due for execution"""
+        return await db.fetch(
+            """
+            SELECT t.*, u.tg_user_id, u.age, u.gender, u.username
+            FROM admin_tasks t
+            JOIN users u ON u.id = t.user_id
+            WHERE t.status IN ('scheduled', 'due')
+            AND t.due_at <= now()
+            AND u.is_blocked = false
+            ORDER BY t.due_at
+            LIMIT $1
+            """,
+            limit
+        )
+
+    @staticmethod
+    async def mark_sent(task_id: int):
+        """Mark task as sent"""
+        await db.execute(
+            """
+            UPDATE admin_tasks
+            SET status = 'sent', sent_at = now(), updated_at = now()
+            WHERE id = $1
+            """,
+            task_id
+        )
+
+    @staticmethod
+    async def mark_failed(task_id: int, error_code: str = None):
+        """Mark task as failed"""
+        await db.execute(
+            """
+            UPDATE admin_tasks
+            SET status = 'failed', result_code = $2, updated_at = now()
+            WHERE id = $1
+            """,
+            task_id, error_code
+        )
+
+    @staticmethod
+    async def count_user_contacts_today(user_id: int) -> int:
+        """Count proactive contacts sent to user today"""
+        count = await db.fetchval(
+            """
+            SELECT COUNT(*) FROM admin_tasks
+            WHERE user_id = $1
+            AND status IN ('sent', 'replied')
+            AND sent_at::date = CURRENT_DATE
+            AND type NOT IN ('THANKS', 'REACT')
+            """,
+            user_id
+        )
+        return count or 0
+
+
+class AdminTemplateModel:
+    @staticmethod
+    async def get_template(task_type: str, tone: str = None):
+        """Get random template for task type and tone"""
+        if tone:
+            templates = await db.fetch(
+                """
+                SELECT text, weight FROM admin_templates
+                WHERE type = $1 AND tone = $2 AND enabled = true
+                """,
+                task_type, tone
+            )
+        else:
+            templates = await db.fetch(
+                """
+                SELECT text, weight FROM admin_templates
+                WHERE type = $1 AND enabled = true
+                """,
+                task_type
+            )
+
+        if not templates:
+            return f"[Template for {task_type} not found]"
+
+        # Weighted random selection
+        import random
+        weighted_templates = []
+        for template in templates:
+            weighted_templates.extend([template['text']] * (template['weight'] or 1))
+
+        return random.choice(weighted_templates)
+
+
+class UserPrefsModel:
+    @staticmethod
+    async def get_prefs(user_id: int):
+        """Get user preferences"""
+        prefs = await db.fetchrow(
+            "SELECT * FROM user_prefs WHERE user_id = $1",
+            user_id
+        )
+        return dict(prefs) if prefs else None
+
+    @staticmethod
+    async def get_cadence(user_id: int):
+        """Get user contact cadence settings"""
+        cadence = await db.fetchrow(
+            "SELECT * FROM contact_cadence WHERE user_id = $1",
+            user_id
+        )
+        return dict(cadence) if cadence else None
 
 
 class PaymentModel:
