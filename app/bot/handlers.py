@@ -243,10 +243,8 @@ async def menu_handler(callback: types.CallbackQuery):
     await callback.answer()
     await start_handler(callback.message)
 
-@router.message()
+@router.message(~Command())
 async def question_handler(message: types.Message):
-    if message.text.startswith('/'):
-        return
 
     user = await UserModel.get_or_create_user(
         message.from_user.id,
