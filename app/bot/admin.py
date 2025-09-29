@@ -14,6 +14,12 @@ admin_router = Router()
 def is_admin(user_id: int) -> bool:
     return user_id in config.ADMIN_IDS
 
+def escape_markdown(text: str) -> str:
+    """Escape markdown special characters"""
+    if not text:
+        return text
+    return str(text).replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace('`', '\\`').replace('(', '\\(').replace(')', '\\)')
+
 @admin_router.message(Command("admin_today"))
 async def admin_today(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -305,7 +311,9 @@ async def admin_users(message: types.Message):
             questions = row['questions_count'] or 0
             join_date = row['first_seen_at'].strftime('%d.%m') if row['first_seen_at'] else "?"
 
-            text += f"{status} {username} — {questions}❓ — {join_date}\n"
+            # Escape markdown special characters in username
+            username_escaped = escape_markdown(username)
+            text += f"{status} {username_escaped} — {questions}❓ — {join_date}\n"
 
         if len(text) > 4000:
             text = text[:3900] + "\n\n... (список обрезан)"
@@ -390,7 +398,7 @@ async def admin_block_user(message: types.Message):
         )
 
         username = f"@{user['username']}" if user['username'] else f"ID:{target_user_id}"
-        await message.answer(f"🚫 Пользователь {username} заблокирован")
+        await message.answer(f"🚫 Пользователь {escape_markdown(username)} заблокирован", parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Admin block error: {e}")
@@ -427,7 +435,7 @@ async def admin_unblock_user(message: types.Message):
         )
 
         username = f"@{user['username']}" if user['username'] else f"ID:{target_user_id}"
-        await message.answer(f"✅ Пользователь {username} разблокирован")
+        await message.answer(f"✅ Пользователь {escape_markdown(username)} разблокирован", parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Admin unblock error: {e}")
