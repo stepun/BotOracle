@@ -236,5 +236,231 @@ async def admin_blocked(message: types.Message):
         logger.error(f"Admin blocked command error: {e}")
         await message.answer("❌ Ошибка при получении списка заблокированных")
 
+@admin_router.message(Command("admin_stats"))
+async def admin_stats(message: types.Message):
+    """Общая статистика бота"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        # Общая статистика
+        total_users = await db.fetchval("SELECT COUNT(*) FROM users")
+        active_subs = await db.fetchval("SELECT COUNT(*) FROM subscriptions WHERE status = 'active' AND ends_at > now()")
+        total_questions = await db.fetchval("SELECT COUNT(*) FROM questions")
+        blocked_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE is_blocked = true")
+
+        # Статистика за сегодня
+        today = date.today()
+        today_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE DATE(first_seen_at) = $1", today)
+        today_questions = await db.fetchval("SELECT COUNT(*) FROM questions WHERE DATE(created_at) = $1", today)
+
+        text = f"""📊 **Статистика бота**
+
+👥 **Пользователи:**
+• Всего: {total_users}
+• Новых сегодня: {today_users}
+• Заблокированных: {blocked_users}
+
+💎 **Подписки:**
+• Активных: {active_subs}
+
+❓ **Вопросы:**
+• Всего: {total_questions}
+• Сегодня: {today_questions}
+
+📅 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"""
+
+        await message.answer(text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"Admin stats error: {e}")
+        await message.answer("❌ Ошибка при получении статистики")
+
+@admin_router.message(Command("admin_users"))
+async def admin_users(message: types.Message):
+    """Список всех пользователей"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        rows = await db.fetch(
+            """
+            SELECT tg_user_id, username, first_seen_at, last_seen_at, is_blocked,
+                   (SELECT COUNT(*) FROM questions WHERE questions.user_id = users.id) as questions_count
+            FROM users
+            ORDER BY first_seen_at DESC
+            LIMIT 50
+            """
+        )
+
+        if not rows:
+            await message.answer("👥 Пользователей пока нет")
+            return
+
+        text = "👥 **Пользователи (последние 50):**\n\n"
+
+        for row in rows:
+            username = f"@{row['username']}" if row['username'] else f"ID:{row['tg_user_id']}"
+            status = "🚫" if row['is_blocked'] else "✅"
+            questions = row['questions_count'] or 0
+            join_date = row['first_seen_at'].strftime('%d.%m') if row['first_seen_at'] else "?"
+
+            text += f"{status} {username} — {questions}❓ — {join_date}\n"
+
+        if len(text) > 4000:
+            text = text[:3900] + "\n\n... (список обрезан)"
+
+        await message.answer(text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"Admin users error: {e}")
+        await message.answer("❌ Ошибка при получении списка пользователей")
+
+@admin_router.message(Command("admin_message"))
+async def admin_message(message: types.Message):
+    """Отправка сообщения всем пользователям"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        # Извлекаем текст сообщения
+        command_parts = message.text.split(' ', 1)
+        if len(command_parts) < 2:
+            await message.answer("❌ Укажите текст сообщения:\n`/admin_message Ваше сообщение здесь`", parse_mode="Markdown")
+            return
+
+        broadcast_text = command_parts[1]
+
+        # Получаем всех активных пользователей
+        users = await db.fetch("SELECT tg_user_id FROM users WHERE is_blocked = false")
+
+        if not users:
+            await message.answer("❌ Нет активных пользователей для рассылки")
+            return
+
+        # Отправляем сообщение
+        sent_count = 0
+        failed_count = 0
+
+        await message.answer(f"📤 Начинаю рассылку для {len(users)} пользователей...")
+
+        for user in users:
+            try:
+                await message.bot.send_message(user['tg_user_id'], broadcast_text)
+                sent_count += 1
+            except Exception:
+                failed_count += 1
+
+        await message.answer(f"""✅ Рассылка завершена:
+• Отправлено: {sent_count}
+• Не доставлено: {failed_count}""")
+
+    except Exception as e:
+        logger.error(f"Admin message error: {e}")
+        await message.answer("❌ Ошибка при рассылке сообщений")
+
+@admin_router.message(Command("admin_block"))
+async def admin_block_user(message: types.Message):
+    """Блокировка пользователя"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        command_parts = message.text.split()
+        if len(command_parts) < 2:
+            await message.answer("❌ Укажите ID пользователя:\n`/admin_block 123456789`", parse_mode="Markdown")
+            return
+
+        try:
+            target_user_id = int(command_parts[1])
+        except ValueError:
+            await message.answer("❌ Неверный формат ID пользователя")
+            return
+
+        # Проверяем, существует ли пользователь
+        user = await db.fetchrow("SELECT id, username FROM users WHERE tg_user_id = $1", target_user_id)
+        if not user:
+            await message.answer("❌ Пользователь не найден")
+            return
+
+        # Блокируем пользователя
+        await db.execute(
+            "UPDATE users SET is_blocked = true, blocked_at = now() WHERE tg_user_id = $1",
+            target_user_id
+        )
+
+        username = f"@{user['username']}" if user['username'] else f"ID:{target_user_id}"
+        await message.answer(f"🚫 Пользователь {username} заблокирован")
+
+    except Exception as e:
+        logger.error(f"Admin block error: {e}")
+        await message.answer("❌ Ошибка при блокировке пользователя")
+
+@admin_router.message(Command("admin_unblock"))
+async def admin_unblock_user(message: types.Message):
+    """Разблокировка пользователя"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        command_parts = message.text.split()
+        if len(command_parts) < 2:
+            await message.answer("❌ Укажите ID пользователя:\n`/admin_unblock 123456789`", parse_mode="Markdown")
+            return
+
+        try:
+            target_user_id = int(command_parts[1])
+        except ValueError:
+            await message.answer("❌ Неверный формат ID пользователя")
+            return
+
+        # Проверяем, существует ли пользователь
+        user = await db.fetchrow("SELECT id, username FROM users WHERE tg_user_id = $1", target_user_id)
+        if not user:
+            await message.answer("❌ Пользователь не найден")
+            return
+
+        # Разблокируем пользователя
+        await db.execute(
+            "UPDATE users SET is_blocked = false, blocked_at = NULL WHERE tg_user_id = $1",
+            target_user_id
+        )
+
+        username = f"@{user['username']}" if user['username'] else f"ID:{target_user_id}"
+        await message.answer(f"✅ Пользователь {username} разблокирован")
+
+    except Exception as e:
+        logger.error(f"Admin unblock error: {e}")
+        await message.answer("❌ Ошибка при разблокировке пользователя")
+
+@admin_router.message(Command("admin_help"))
+async def admin_help(message: types.Message):
+    """Помощь по админским командам"""
+    if not is_admin(message.from_user.id):
+        return
+
+    help_text = """🔧 **Админские команды:**
+
+📊 **Статистика:**
+• `/admin_stats` — общая статистика бота
+• `/admin_today` — статистика за сегодня
+• `/admin_range YYYY-MM-DD YYYY-MM-DD` — статистика за период
+• `/admin_export` — экспорт данных в CSV
+
+👥 **Пользователи:**
+• `/admin_users` — список пользователей (последние 50)
+• `/admin_paid` — список пользователей с подписками
+• `/admin_blocked` — список заблокированных пользователей
+
+🛠️ **Управление:**
+• `/admin_message <текст>` — рассылка всем пользователям
+• `/admin_block <user_id>` — заблокировать пользователя
+• `/admin_unblock <user_id>` — разблокировать пользователя
+
+ℹ️ **Информация:**
+• `/admin_help` — эта справка"""
+
+    await message.answer(help_text, parse_mode="Markdown")
+
 def setup_admin_handlers(dp):
     dp.include_router(admin_router)
