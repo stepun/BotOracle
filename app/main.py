@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 from app.config import config
 
 # Import database
-from app.database.connection import init_db
+from app.database.connection import db
 
 # Import bot components
 from app.bot.onboarding import router as onboarding_router
@@ -81,7 +81,7 @@ async def startup_event():
         logger.info("👥 Personalized interactions based on user demographics")
 
         # Initialize database
-        await init_db()
+        await db.connect()
 
         # Create bot and dispatcher
         bot_instance, dp_instance = await create_bot_app()
