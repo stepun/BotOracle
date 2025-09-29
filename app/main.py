@@ -3,9 +3,10 @@ import logging
 from contextlib import asynccontextmanager
 
 from aiogram import Bot, Dispatcher
+from aiogram.types import Update
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import config
@@ -105,14 +106,15 @@ app.include_router(admin_router)
 
 # Webhook handler
 @app.post(config.WEBHOOK_PATH)
-async def webhook_handler(request):
+async def webhook_handler(request: Request):
     try:
         data = await request.json()
-        await dp.feed_webhook_update(bot, data)
+        update = Update(**data)
+        await dp.feed_webhook_update(bot, update)
         return {"status": "ok"}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail="Webhook processing error")
 
 # Root endpoint
 @app.get("/")
