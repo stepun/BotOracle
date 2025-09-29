@@ -49,6 +49,7 @@ async def start_handler(message: types.Message):
 
 @router.message(Command("subscribe"))
 async def subscribe_command(message: types.Message):
+    logger.info(f"Subscribe command received from user {message.from_user.id}")
     user = await UserModel.get_or_create_user(
         message.from_user.id,
         message.from_user.username
