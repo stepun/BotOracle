@@ -34,4 +34,7 @@ class Config:
     WEEK_PRICE: float = float(os.getenv("WEEK_PRICE", "99"))
     MONTH_PRICE: float = float(os.getenv("MONTH_PRICE", "299"))
 
+    # Proxy settings
+    SOCKS5_PROXY: str = os.getenv("SOCKS5_PROXY", "")
+
 config = Config()
