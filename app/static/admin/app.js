@@ -3,10 +3,66 @@ tg.ready();
 tg.expand();
 
 const API_URL = window.location.origin;
-const ADMIN_TOKEN = 'supersecret_admin_token';
+let ADMIN_TOKEN = null;
 
 let currentUserFilter = '';
 let currentSubFilter = '';
+
+// Verify admin access on load
+async function verifyAccess() {
+    try {
+        // Check if opened in Telegram
+        if (!tg.initData) {
+            showError('❌ Open this page in Telegram Mini App');
+            return false;
+        }
+
+        const response = await fetch(`${API_URL}/admin/auth/verify`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                initData: tg.initData
+            })
+        });
+
+        if (!response.ok) {
+            if (response.status === 403) {
+                showError('🚫 Access denied. Admin only.');
+            } else {
+                showError('❌ Authentication failed');
+            }
+            return false;
+        }
+
+        const data = await response.json();
+        ADMIN_TOKEN = data.token;
+
+        // Show username in header
+        const header = document.querySelector('.header h1');
+        if (data.user && data.user.first_name) {
+            header.textContent = `📊 Admin Panel - ${data.user.first_name}`;
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Error verifying access:', error);
+        showError('❌ Connection error');
+        return false;
+    }
+}
+
+function showError(message) {
+    document.body.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; height: 100vh; padding: 20px; text-align: center;">
+            <div>
+                <div style="font-size: 48px; margin-bottom: 20px;">${message.split(' ')[0]}</div>
+                <div style="font-size: 18px; opacity: 0.7;">${message.substring(message.indexOf(' ') + 1)}</div>
+            </div>
+        </div>
+    `;
+}
 
 // Load dashboard data
 async function loadDashboard() {
@@ -176,17 +232,22 @@ document.querySelectorAll('[data-filter-sub]').forEach(btn => {
     });
 });
 
-// Initial load
-loadDashboard();
-loadUsers();
+// Initial load with access verification
+(async function() {
+    const hasAccess = await verifyAccess();
+    if (hasAccess) {
+        loadDashboard();
+        loadUsers();
 
-// Refresh every 30 seconds
-setInterval(() => {
-    loadDashboard();
-    const activeTab = document.querySelector('.tab.active').dataset.tab;
-    if (activeTab === 'users') {
-        loadUsers(currentUserFilter);
-    } else if (activeTab === 'subscriptions') {
-        loadSubscriptions(currentSubFilter);
+        // Refresh every 30 seconds
+        setInterval(() => {
+            loadDashboard();
+            const activeTab = document.querySelector('.tab.active').dataset.tab;
+            if (activeTab === 'users') {
+                loadUsers(currentUserFilter);
+            } else if (activeTab === 'subscriptions') {
+                loadSubscriptions(currentSubFilter);
+            }
+        }, 30000);
     }
-}, 30000);
+})();
