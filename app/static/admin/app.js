@@ -107,7 +107,7 @@ async function loadUsers(filter = '') {
         }
 
         list.innerHTML = data.users.map(user => `
-            <div class="list-item">
+            <div class="list-item" onclick="showUserDetails(${user.id})" style="cursor: pointer;">
                 <div class="list-item-header">
                     <div class="list-item-username">@${user.username || user.tg_user_id}</div>
                     <div class="list-item-badge ${user.has_subscription ? 'badge-paid' : (user.is_blocked ? 'badge-blocked' : 'badge-active')}">
@@ -296,6 +296,97 @@ document.getElementById('testCrmBtn').addEventListener('click', async () => {
         btn.textContent = '🧪 Тест CRM';
     }
 });
+
+// Show user details modal
+async function showUserDetails(userId) {
+    const modal = document.getElementById('userModal');
+    const modalBody = document.getElementById('userModalBody');
+
+    modal.style.display = 'flex';
+    modalBody.innerHTML = '<div class="loading">Loading user details...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/admin/users/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+
+        const user = data.user;
+
+        modalBody.innerHTML = `
+            <div class="modal-section">
+                <h3>👤 User Info</h3>
+                <div class="modal-info">
+                    <div><strong>Username:</strong> @${user.username || user.tg_user_id}</div>
+                    <div><strong>Age:</strong> ${user.age || '-'}</div>
+                    <div><strong>Gender:</strong> ${user.gender || '-'}</div>
+                    <div><strong>Free Questions:</strong> ${user.free_questions_left}</div>
+                    <div><strong>Subscription:</strong> ${user.has_subscription ? `Active until ${formatDate(user.subscription_end)}` : 'None'}</div>
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <h3>📨 Daily Messages (${data.daily_messages.length})</h3>
+                <div class="modal-list">
+                    ${data.daily_messages.length > 0 ? data.daily_messages.map(msg => `
+                        <div class="modal-list-item">
+                            <span>${formatDate(msg.date)}</span>
+                        </div>
+                    `).join('') : '<div class="empty">No daily messages yet</div>'}
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <h3>🔮 Oracle Questions (${data.oracle_questions.length})</h3>
+                <div class="modal-list">
+                    ${data.oracle_questions.length > 0 ? data.oracle_questions.slice(0, 10).map(q => `
+                        <div class="modal-list-item">
+                            <div class="modal-question"><strong>Q:</strong> ${q.question}</div>
+                            <div class="modal-answer"><strong>A:</strong> ${q.answer.substring(0, 100)}${q.answer.length > 100 ? '...' : ''}</div>
+                            <div class="modal-meta">${q.source} • ${formatDate(q.date)} • ${q.tokens} tokens</div>
+                        </div>
+                    `).join('') : '<div class="empty">No questions asked yet</div>'}
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <h3>💳 Payments (${data.payments.length})</h3>
+                <div class="modal-list">
+                    ${data.payments.length > 0 ? data.payments.map(p => `
+                        <div class="modal-list-item">
+                            <span><strong>${p.plan}:</strong> ${p.amount}₽</span>
+                            <span class="badge-${p.status === 'success' ? 'active' : 'blocked'}">${p.status}</span>
+                            <span>${formatDate(p.paid_at || p.created_at)}</span>
+                        </div>
+                    `).join('') : '<div class="empty">No payments yet</div>'}
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <h3>🤖 CRM Logs (${data.crm_logs.length})</h3>
+                <div class="modal-list">
+                    ${data.crm_logs.length > 0 ? data.crm_logs.slice(0, 20).map(log => `
+                        <div class="modal-list-item">
+                            <span><strong>${log.type}:</strong> ${log.status}</span>
+                            ${log.result_code ? `<span class="error">${log.result_code}</span>` : ''}
+                            <span>${formatDate(log.sent_at || log.due_at || log.created_at)}</span>
+                        </div>
+                    `).join('') : '<div class="empty">No CRM activity yet</div>'}
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading user details:', error);
+        modalBody.innerHTML = '<div class="error">Error loading user details</div>';
+    }
+}
+
+// Close modal
+function closeUserModal() {
+    document.getElementById('userModal').style.display = 'none';
+}
 
 // Initial load with access verification
 (async function() {
