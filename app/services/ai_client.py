@@ -4,7 +4,7 @@ Handles both Administrator and Oracle persona responses
 """
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, AsyncGenerator
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -75,9 +75,15 @@ class AIClient:
 
             response = result.choices[0].message.content.strip()
 
-            # Oracle responses can be longer (max 500 chars)
-            if len(response) > 500:
-                response = response[:497] + "..."
+            # Oracle responses can be longer (max 800 chars for better context)
+            if len(response) > 800:
+                # Try to cut at sentence end
+                truncated = response[:797]
+                last_period = truncated.rfind('.')
+                if last_period > 600:  # Keep at least 600 chars
+                    response = truncated[:last_period + 1]
+                else:
+                    response = truncated + "..."
 
             logger.info(f"Oracle AI response generated: {len(response)} chars")
             return response
@@ -85,6 +91,44 @@ class AIClient:
         except Exception as e:
             logger.error(f"Error getting oracle AI response: {e}")
             return self._oracle_stub(question)
+
+    async def get_oracle_response_stream(self, question: str, user_context: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        """Generate Oracle persona response with streaming - yields text chunks"""
+        if not self.client:
+            yield self._oracle_stub(question)
+            return
+
+        try:
+            system_prompt = self._build_oracle_system_prompt()
+
+            stream = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Вопрос для размышления: {question}"}
+                ],
+                temperature=0.7,
+                max_tokens=400,
+                stream=True
+            )
+
+            full_response = ""
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_response += content
+
+                    # Stop if we exceed 800 chars
+                    if len(full_response) > 800:
+                        break
+
+                    yield content
+
+            logger.info(f"Oracle AI streaming response generated: {len(full_response)} chars")
+
+        except Exception as e:
+            logger.error(f"Error getting oracle AI streaming response: {e}")
+            yield self._oracle_stub(question)
 
     def _build_admin_system_prompt(self, age: int, gender: str) -> str:
         """Build system prompt for Administrator persona"""
@@ -166,3 +210,8 @@ async def call_admin_ai(question: str, user_context: Dict[str, Any] = None) -> s
 async def call_oracle_ai(question: str, user_context: Dict[str, Any] = None) -> str:
     """Entry point for Oracle AI responses"""
     return await ai_client.get_oracle_response(question, user_context or {})
+
+async def call_oracle_ai_stream(question: str, user_context: Dict[str, Any] = None) -> AsyncGenerator[str, None]:
+    """Entry point for Oracle AI responses with streaming"""
+    async for chunk in ai_client.get_oracle_response_stream(question, user_context or {}):
+        yield chunk

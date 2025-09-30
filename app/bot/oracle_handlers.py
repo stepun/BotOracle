@@ -20,11 +20,13 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 # AI integration
-from app.services.ai_client import call_admin_ai, call_oracle_ai
+from app.services.ai_client import call_admin_ai, call_oracle_ai, call_oracle_ai_stream
+import asyncio
 
 @router.message(F.text == "📨 Сообщение дня")
 async def daily_message_handler(message: types.Message):
-    """Handle daily message requests"""
+    """Handle daily message requests - generates personalized AI message"""
+    logger.info(f"Daily message button pressed by user {message.from_user.id}")
     try:
         user = await UserModel.get_by_tg_id(message.from_user.id)
         if not user:
@@ -44,21 +46,51 @@ async def daily_message_handler(message: types.Message):
             await message.answer(repeat_message)
             return
 
-        # Get random daily message
-        daily_msg = await DailyMessageModel.get_random_message()
-        if not daily_msg:
-            await message.answer(persona.wrap("сегодня без новостей, но я слежу 😌"))
-            return
+        # Generate personalized daily message using AI
+        await message.answer(persona.wrap("генерирую для тебя сегодняшнее сообщение... 🎨"))
 
-        # Send message and mark as sent
-        await message.answer(
-            persona.wrap(f"сегодняшнее сообщение: {daily_msg['text']}")
-        )
+        # Build prompt for AI to generate daily message
+        age = user.get('age', 25)
+        gender = user.get('gender', 'other')
 
-        await DailyMessageModel.mark_sent(user['id'], daily_msg['id'])
+        # Variety of styles and emotions for random selection
+        import random
+        styles = ['мотивирующий', 'вдохновляющий', 'поддерживающий', 'философский', 'дружеский']
+        emotions = ['позитивная', 'спокойная', 'энергичная', 'мудрая', 'теплая']
+
+        style = random.choice(styles)
+        emotion = random.choice(emotions)
+
+        prompt = f"""Создай короткое мотивирующее/вдохновляющее сообщение дня для пользователя.
+
+Характеристики пользователя:
+- Возраст: {age}
+- Пол: {gender}
+
+Стиль: {style}
+Эмоция: {emotion}
+
+Требования:
+- 1-2 предложения максимум
+- Личное обращение, эмоциональное
+- Без банальностей
+- На русском языке
+- Без эмодзи (их добавит персона)"""
+
+        # Generate message using Administrator AI
+        user_context = {'age': age, 'gender': gender}
+        ai_message = await call_admin_ai(prompt, user_context)
+
+        # Send generated message
+        await message.answer(persona.wrap(ai_message))
+
+        # Mark as sent (AI-generated, no template ID needed)
+        await DailyMessageModel.mark_sent(user['id'])
 
         # Update last seen
         await UserModel.update_last_seen(user['id'])
+
+        logger.info(f"Daily message generated for user {user['id']}: style={style}, emotion={emotion}")
 
     except Exception as e:
         logger.error(f"Error in daily message handler: {e}")
@@ -67,6 +99,7 @@ async def daily_message_handler(message: types.Message):
 @router.message(F.text == "💎 Подписка")
 async def subscription_menu_handler(message: types.Message):
     """Handle subscription menu"""
+    logger.info(f"Subscription button pressed by user {message.from_user.id}")
     try:
         user = await UserModel.get_by_tg_id(message.from_user.id)
         if not user:
@@ -89,8 +122,29 @@ async def subscription_menu_handler(message: types.Message):
                            "можешь задавать вопросы оракулу (до 10 в день)")
             )
         else:
+            # Generate payment URLs for all plans
+            from app.utils.robokassa import generate_payment_url
+            from datetime import datetime
+            from app.database.models import PaymentModel
+
+            # Create payments and URLs
+            inv_id_day = int(datetime.now().timestamp())
+            inv_id_week = inv_id_day + 1
+            inv_id_month = inv_id_day + 2
+
+            await PaymentModel.create_payment(user['id'], inv_id_day, 'DAY', 99.0)
+            await PaymentModel.create_payment(user['id'], inv_id_week, 'WEEK', 299.0)
+            await PaymentModel.create_payment(user['id'], inv_id_month, 'MONTH', 899.0)
+
+            url_day = generate_payment_url(99.0, str(inv_id_day), "Подписка на день")
+            url_week = generate_payment_url(299.0, str(inv_id_week), "Подписка на неделю")
+            url_month = generate_payment_url(899.0, str(inv_id_month), "Подписка на месяц")
+
+            # Import here to avoid circular imports
+            from app.bot.keyboards import get_subscription_menu_with_urls
+
             menu_text = get_admin_response("subscription_menu", persona)
-            await message.answer(menu_text, reply_markup=get_subscription_menu())
+            await message.answer(menu_text, reply_markup=get_subscription_menu_with_urls(url_day, url_week, url_month))
 
         await UserModel.update_last_seen(user['id'])
 
@@ -168,25 +222,45 @@ async def question_handler(message: types.Message, state: FSMContext):
                 await message.answer(limit_message)
                 return
 
-            # Call Oracle AI (wise, profound response)
+            # Call Oracle AI with streaming (wise, profound response)
             user_context = {'age': user.get('age'), 'gender': user.get('gender')}
-            answer = await call_oracle_ai(question, user_context)
+
+            # Send initial message
+            oracle_msg = await message.answer("🔮 **Оракул размышляет...**", parse_mode="Markdown")
+
+            # Stream the response
+            full_answer = ""
+            display_text = "🔮 **Оракул отвечает:**\n\n"
+            last_update = asyncio.get_event_loop().time()
+
+            async for chunk in call_oracle_ai_stream(question, user_context):
+                full_answer += chunk
+                display_text_with_answer = display_text + full_answer
+
+                # Update message every 0.5 seconds to avoid rate limits
+                current_time = asyncio.get_event_loop().time()
+                if current_time - last_update >= 0.5:
+                    try:
+                        await oracle_msg.edit_text(display_text_with_answer, parse_mode="Markdown")
+                        last_update = current_time
+                    except Exception:
+                        pass  # Ignore errors if message is the same
+
+            # Final update with counter
+            remaining = 10 - oracle_used - 1
+            final_text = display_text + full_answer
+
+            if remaining > 0:
+                final_text += f"\n\n_Осталось {remaining} вопрос{'ов' if remaining > 1 else ''} на сегодня._"
+            else:
+                final_text += f"\n\n_Лимит вопросов на сегодня исчерпан. Завтра будет новый день._"
+
+            await oracle_msg.edit_text(final_text, parse_mode="Markdown")
 
             # Save question and answer
             await OracleQuestionModel.save_question(
-                user['id'], question, answer, source='SUB'
+                user['id'], question, full_answer, source='SUB'
             )
-
-            # Send Oracle response (without persona wrapping - Oracle speaks directly)
-            remaining = 10 - oracle_used - 1
-            oracle_response = f"🔮 **Оракул отвечает:**\n\n{answer}"
-
-            if remaining > 0:
-                oracle_response += f"\n\n_Остался {remaining} вопрос{'ов' if remaining > 1 else ''} на сегодня._"
-            else:
-                oracle_response += f"\n\n_Лимит вопросов на сегодня исчерпан. Завтра будет новый день._"
-
-            await message.answer(oracle_response, parse_mode="Markdown")
 
         else:
             # ADMINISTRATOR MODE - no subscription, use free questions
@@ -257,7 +331,7 @@ async def buy_subscription_callback(callback: types.CallbackQuery):
         persona = persona_factory(user)
 
         # Import here to avoid circular imports
-        from app.utils.robokassa import create_payment_url
+        from app.utils.robokassa import generate_payment_url
         from datetime import datetime
         import uuid
 
@@ -270,7 +344,9 @@ async def buy_subscription_callback(callback: types.CallbackQuery):
         await PaymentModel.create_payment(user['id'], inv_id, plan, amount)
 
         # Generate payment URL
-        payment_url = create_payment_url(inv_id, plan, amount)
+        plan_descriptions = {"DAY": "Подписка на день", "WEEK": "Подписка на неделю", "MONTH": "Подписка на месяц"}
+        description = plan_descriptions.get(plan, "Подписка Bot Oracle")
+        payment_url = generate_payment_url(amount, str(inv_id), description)
 
         await callback.message.answer(
             persona.wrap(f"отличный выбор! переходи к оплате:\n{payment_url}")
@@ -307,3 +383,11 @@ async def help_handler(message: types.Message):
     """
 
     await message.answer(help_text, parse_mode="Markdown")
+
+# Debug handler - catch all unhandled messages
+@router.message()
+async def debug_unhandled_message(message: types.Message):
+    """Log unhandled messages for debugging"""
+    logger.warning(f"UNHANDLED MESSAGE: text=\"{message.text}\", from_user={message.from_user.id}")
+    await message.answer(f"Debug: получено сообщение \"{message.text}\"")
+

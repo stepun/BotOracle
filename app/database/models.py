@@ -48,6 +48,15 @@ class UserModel:
         return dict(user) if user else None
 
     @staticmethod
+    async def get_by_id(user_id: int) -> Optional[dict]:
+        """Get user by internal ID"""
+        user = await db.fetchrow(
+            "SELECT * FROM users WHERE id = $1",
+            user_id
+        )
+        return dict(user) if user else None
+
+    @staticmethod
     async def update_profile(tg_user_id: int, age: int, gender: str):
         """Update user profile with age and gender"""
         await db.execute(
@@ -119,7 +128,7 @@ class SubscriptionModel:
 
     @staticmethod
     async def create_subscription(user_id: int, plan_code: str, amount: float,
-                                inv_id: str = None) -> int:
+                                inv_id: int = None) -> int:
         days = 7 if plan_code == 'WEEK' else 30
 
         subscription_id = await db.fetchval(
@@ -128,7 +137,7 @@ class SubscriptionModel:
             VALUES ($1, $2, now() + interval '%s days', $3, $4)
             RETURNING id
             """ % days,
-            user_id, plan_code, inv_id, amount
+            user_id, plan_code, str(inv_id) if inv_id else None, amount
         )
 
         await EventModel.log_event(
@@ -194,10 +203,11 @@ class DailyMessageModel:
         return dict(message) if message else None
 
     @staticmethod
-    async def mark_sent(user_id: int, message_id: int):
+    async def mark_sent(user_id: int, message_id: int = None):
+        """Mark daily message as sent. message_id is optional for AI-generated messages."""
         await db.execute(
-            "INSERT INTO daily_sent (user_id, message_id) VALUES ($1, $2)",
-            user_id, message_id
+            "INSERT INTO daily_sent (user_id) VALUES ($1)",
+            user_id
         )
 
     @staticmethod
@@ -493,7 +503,7 @@ class PaymentModel:
             SET status = 'success', paid_at = now(), raw_payload = $2
             WHERE inv_id = $1
             """,
-            inv_id, raw_payload
+            inv_id, json.dumps(raw_payload) if raw_payload else None
         )
 
     @staticmethod
@@ -504,5 +514,7 @@ class PaymentModel:
             SET status = 'failed', raw_payload = $2
             WHERE inv_id = $1
             """,
-            inv_id, raw_payload
+            inv_id, json.dumps(raw_payload) if raw_payload else None
         )
+
+

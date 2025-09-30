@@ -47,7 +47,7 @@ app = FastAPI(
 
 # Include API routers
 app.include_router(admin_router)
-app.include_router(robokassa_router)
+app.include_router(robokassa_router, prefix="/api")
 
 async def create_bot_app():
     """Create and configure bot application"""

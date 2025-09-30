@@ -29,9 +29,13 @@ async def start_command(message: types.Message, state: FSMContext):
             # User already onboarded, show welcome back message
             persona = persona_factory(user)
             await message.answer(
-                persona.wrap("с возвращением! 🌟 я помню тебя. что будем делать?"),
-                reply_markup=ReplyKeyboardRemove()
+                persona.wrap("с возвращением! 🌟 я помню тебя. что будем делать?")
             )
+
+            # Send main menu
+            from app.bot.keyboards import get_main_menu
+            await message.answer("Выбери действие:", reply_markup=get_main_menu())
+
             await state.clear()
             return
 
@@ -158,22 +162,5 @@ async def process_gender(message: types.Message, state: FSMContext):
         logger.error(f"Error processing gender: {e}")
         await message.answer("Произошла ошибка. Попробуйте ещё раз.")
 
-# Helper handler for users who skipped onboarding somehow
-@router.message(lambda message: True)  # Catch-all for incomplete onboarding
-async def handle_incomplete_onboarding(message: types.Message, state: FSMContext):
-    """Handle messages from users who haven't completed onboarding"""
-    try:
-        current_state = await state.get_state()
-
-        # If user is not in onboarding states but doesn't have profile, redirect to onboarding
-        if current_state is None:
-            user = await UserModel.get_by_tg_id(message.from_user.id)
-            if user and (not user.get('age') or not user.get('gender')):
-                await message.answer(
-                    "Давай сначала познакомимся! 🤗\n"
-                    "Напиши /start чтобы начать."
-                )
-                return
-
-    except Exception as e:
-        logger.error(f"Error in incomplete onboarding handler: {e}")
+# NOTE: No catch-all handler here to allow oracle_handlers to process messages
+# Onboarding only handles /start and FSM states
