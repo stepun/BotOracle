@@ -85,6 +85,7 @@
             <button class="tab" data-tab="tasks">Tasks</button>
             <button class="tab" data-tab="templates">Templates</button>
             <button class="tab" data-tab="daily-messages">Daily Msgs</button>
+            <button class="tab" data-tab="prompts">AI Prompts</button>
         </div>
 
         <div class="tab-content active" id="users-tab">
@@ -142,6 +143,20 @@
                 <button id="createDailyMsgBtn" class="test-crm-btn">➕ Create Daily Message</button>
             </div>
             <div class="list" id="dailyMessagesList">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="prompts-tab">
+            <div style="margin-bottom: 16px;">
+                <button id="createPromptBtn" class="test-crm-btn">➕ Create AI Prompt</button>
+            </div>
+            <div class="filters">
+                <button class="filter-btn active" data-filter-prompt="">All</button>
+                <button class="filter-btn" data-filter-prompt="true">Active</button>
+                <button class="filter-btn" data-filter-prompt="false">Inactive</button>
+            </div>
+            <div class="list" id="promptsList">
                 <div class="loading">Loading...</div>
             </div>
         </div>
@@ -325,6 +340,51 @@
                     <div style="display: flex; gap: 8px; margin-top: 8px;">
                         <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
                         <button type="button" onclick="closeDailyMessageModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Prompt Create/Edit Modal -->
+    <div id="promptModal" class="modal" onclick="if(event.target === this) closePromptModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="promptModalTitle">Create AI Prompt</h2>
+                <button class="modal-close" onclick="closePromptModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="promptForm" style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="hidden" id="promptId">
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Key *</label>
+                        <input type="text" id="promptKey" placeholder="e.g. admin_base, oracle_system" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Name *</label>
+                        <input type="text" id="promptName" placeholder="Human-readable name" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Description</label>
+                        <input type="text" id="promptDescription" placeholder="Optional description" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Prompt Text *</label>
+                        <textarea id="promptText" placeholder="Full prompt text for AI" rows="8" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: monospace;"></textarea>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="promptActive" checked style="width: 20px; height: 20px; cursor: pointer;">
+                        <label for="promptActive" style="font-size: 14px; cursor: pointer;">Active</label>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
+                        <button type="button" onclick="closePromptModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
                     </div>
                 </form>
             </div>

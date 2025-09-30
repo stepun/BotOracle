@@ -225,6 +225,8 @@ document.querySelectorAll('.tab').forEach(tab => {
             loadTemplates();
         } else if (tab.dataset.tab === 'daily-messages') {
             loadDailyMessages();
+        } else if (tab.dataset.tab === 'prompts') {
+            loadPrompts(currentPromptFilter);
         }
     });
 });
@@ -1106,6 +1108,194 @@ function closeDailyMessageModal() {
     document.getElementById('dailyMessageModal').style.display = 'none';
 }
 
+// ============================================================================
+// AI Prompts CRUD
+// ============================================================================
+
+// Current prompt filter
+let currentPromptFilter = '';
+
+// Load prompts list
+async function loadPrompts(isActiveFilter = '') {
+    const list = document.getElementById('promptsList');
+    list.innerHTML = '<div class="loading">Loading...</div>';
+
+    try {
+        let url = `${API_URL}/admin/prompts?limit=100`;
+        if (isActiveFilter !== '') {
+            url += `&is_active=${isActiveFilter}`;
+        }
+
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+
+        if (data.prompts.length === 0) {
+            list.innerHTML = '<div class="loading">No prompts found</div>';
+            return;
+        }
+
+        list.innerHTML = data.prompts.map(prompt => `
+            <div class="list-item">
+                <div class="list-item-header">
+                    <div class="list-item-username">${prompt.name}</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="list-item-badge ${prompt.is_active ? 'badge-active' : 'badge-blocked'}">${prompt.is_active ? 'ACTIVE' : 'INACTIVE'}</span>
+                        <button onclick="editPrompt(${prompt.id})" style="padding: 4px 12px; background: #3390ec; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Edit</button>
+                        <button onclick="deletePrompt(${prompt.id})" style="padding: 4px 12px; background: #f44336; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Delete</button>
+                    </div>
+                </div>
+                <div class="list-item-details">
+                    <div class="detail-row">
+                        <div class="detail-label">ID</div>
+                        <div class="detail-value">${prompt.id}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Key</div>
+                        <div class="detail-value">${prompt.key}</div>
+                    </div>
+                    <div class="detail-row" style="grid-column: 1 / -1;">
+                        <div class="detail-label">Description</div>
+                        <div class="detail-value">${prompt.description || 'N/A'}</div>
+                    </div>
+                    <div class="detail-row" style="grid-column: 1 / -1;">
+                        <div class="detail-label">Prompt Text</div>
+                        <div class="detail-value" style="word-break: break-word; font-family: monospace; font-size: 12px;">${prompt.prompt_text.substring(0, 150)}${prompt.prompt_text.length > 150 ? '...' : ''}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        list.innerHTML = '<div class="error">Error loading prompts</div>';
+        console.error('Error loading prompts:', error);
+    }
+}
+
+// Prompt filter buttons
+document.querySelectorAll('[data-filter-prompt]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-filter-prompt]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPromptFilter = btn.dataset.filterPrompt;
+        loadPrompts(currentPromptFilter);
+    });
+});
+
+// Create prompt button handler
+document.getElementById('createPromptBtn').addEventListener('click', () => {
+    document.getElementById('promptModalTitle').textContent = 'Create AI Prompt';
+    document.getElementById('promptForm').reset();
+    document.getElementById('promptId').value = '';
+    document.getElementById('promptActive').checked = true;
+    document.getElementById('promptModal').style.display = 'flex';
+});
+
+// Prompt form submit handler
+document.getElementById('promptForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const promptId = document.getElementById('promptId').value;
+    const key = document.getElementById('promptKey').value;
+    const name = document.getElementById('promptName').value;
+    const description = document.getElementById('promptDescription').value;
+    const promptText = document.getElementById('promptText').value;
+    const isActive = document.getElementById('promptActive').checked;
+
+    const payload = {
+        key: key,
+        name: name,
+        prompt_text: promptText,
+        description: description || null,
+        is_active: isActive
+    };
+
+    try {
+        const url = promptId ? `${API_URL}/admin/prompts/${promptId}` : `${API_URL}/admin/prompts`;
+        const method = promptId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            closePromptModal();
+            loadPrompts(currentPromptFilter);
+        } else {
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error saving prompt:', error);
+        alert('Error saving prompt');
+    }
+});
+
+// Edit prompt
+async function editPrompt(promptId) {
+    try {
+        const response = await fetch(`${API_URL}/admin/prompts/${promptId}`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const prompt = await response.json();
+
+        if (prompt) {
+            document.getElementById('promptModalTitle').textContent = 'Edit AI Prompt';
+            document.getElementById('promptId').value = prompt.id;
+            document.getElementById('promptKey').value = prompt.key;
+            document.getElementById('promptName').value = prompt.name;
+            document.getElementById('promptDescription').value = prompt.description || '';
+            document.getElementById('promptText').value = prompt.prompt_text;
+            document.getElementById('promptActive').checked = prompt.is_active;
+            document.getElementById('promptModal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error loading prompt:', error);
+        alert('Error loading prompt');
+    }
+}
+
+// Delete prompt
+async function deletePrompt(promptId) {
+    if (!confirm('Are you sure you want to delete this prompt?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/prompts/${promptId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        if (response.ok) {
+            loadPrompts(currentPromptFilter);
+        } else {
+            const result = await response.json();
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error deleting prompt:', error);
+        alert('Error deleting prompt');
+    }
+}
+
+// Close prompt modal
+function closePromptModal() {
+    document.getElementById('promptModal').style.display = 'none';
+}
+
 // Initial load with access verification
 (async function() {
     const hasAccess = await verifyAccess();
@@ -1129,6 +1319,8 @@ function closeDailyMessageModal() {
                 loadTemplates();
             } else if (activeTab === 'daily-messages') {
                 loadDailyMessages();
+            } else if (activeTab === 'prompts') {
+                loadPrompts(currentPromptFilter);
             }
         }, 30000);
     }
