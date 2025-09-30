@@ -434,6 +434,16 @@ class AdminTemplateModel:
                 """,
                 task_type, tone
             )
+
+            # Fallback: if no templates for this tone, try without tone filter
+            if not templates:
+                templates = await db.fetch(
+                    """
+                    SELECT text, weight FROM admin_templates
+                    WHERE type = $1 AND enabled = true
+                    """,
+                    task_type
+                )
         else:
             templates = await db.fetch(
                 """
