@@ -1145,6 +1145,8 @@ async def create_admin_task(
 ):
     """Create a new admin task"""
     try:
+        from datetime import datetime
+
         # Validate user_id if provided
         if task.user_id:
             user = await db.fetchrow(
@@ -1153,6 +1155,10 @@ async def create_admin_task(
             )
             if not user:
                 raise HTTPException(status_code=404, detail=f"User {task.user_id} not found")
+
+        # Parse datetime strings
+        scheduled_at = datetime.fromisoformat(task.scheduled_at) if task.scheduled_at else None
+        due_at = datetime.fromisoformat(task.due_at) if task.due_at else None
 
         # Insert task
         row = await db.fetchrow(
@@ -1165,8 +1171,8 @@ async def create_admin_task(
             task.type,
             task.status,
             json.dumps(task.payload) if task.payload else '{}',
-            task.scheduled_at,
-            task.due_at
+            scheduled_at,
+            due_at
         )
 
         return {
@@ -1199,6 +1205,8 @@ async def update_admin_task(
 ):
     """Update an existing admin task"""
     try:
+        from datetime import datetime
+
         # Check if task exists
         existing = await db.fetchrow(
             "SELECT id FROM admin_tasks WHERE id = $1",
@@ -1243,17 +1251,17 @@ async def update_admin_task(
 
         if task.scheduled_at is not None:
             updates.append(f"scheduled_at = ${param_count}")
-            params.append(task.scheduled_at)
+            params.append(datetime.fromisoformat(task.scheduled_at))
             param_count += 1
 
         if task.due_at is not None:
             updates.append(f"due_at = ${param_count}")
-            params.append(task.due_at)
+            params.append(datetime.fromisoformat(task.due_at))
             param_count += 1
 
         if task.sent_at is not None:
             updates.append(f"sent_at = ${param_count}")
-            params.append(task.sent_at)
+            params.append(datetime.fromisoformat(task.sent_at))
             param_count += 1
 
         if task.result_code is not None:
