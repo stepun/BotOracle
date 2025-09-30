@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📊 Admin Panel</h1>
+            <p class="subtitle">Bot Oracle Management</p>
+        </header>
+
+        <div class="dashboard" id="dashboard">
+            <div class="card">
+                <div class="card-icon">👥</div>
+                <div class="card-content">
+                    <div class="card-value" id="totalUsers">-</div>
+                    <div class="card-label">Total Users</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-icon">💎</div>
+                <div class="card-content">
+                    <div class="card-value" id="activeSubs">-</div>
+                    <div class="card-label">Active Subscriptions</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-icon">💰</div>
+                <div class="card-content">
+                    <div class="card-value" id="todayRevenue">-</div>
+                    <div class="card-label">Today Revenue</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="users">Users</button>
+            <button class="tab" data-tab="subscriptions">Subscriptions</button>
+        </div>
+
+        <div class="tab-content active" id="users-tab">
+            <div class="filters">
+                <button class="filter-btn active" data-filter="">All</button>
+                <button class="filter-btn" data-filter="active">Active</button>
+                <button class="filter-btn" data-filter="paid">Paid</button>
+                <button class="filter-btn" data-filter="blocked">Blocked</button>
+            </div>
+            <div class="list" id="usersList">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="subscriptions-tab">
+            <div class="filters">
+                <button class="filter-btn active" data-filter-sub="">All</button>
+                <button class="filter-btn" data-filter-sub="active">Active</button>
+                <button class="filter-btn" data-filter-sub="expired">Expired</button>
+            </div>
+            <div class="list" id="subscriptionsList">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

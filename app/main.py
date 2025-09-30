@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 import markdown
 from pathlib import Path
@@ -51,6 +52,9 @@ app = FastAPI(
 # Include API routers
 app.include_router(admin_router)
 app.include_router(robokassa_router, prefix="/api")
+
+# Mount static files for admin panel
+app.mount("/admin", StaticFiles(directory="app/static/admin", html=True), name="admin")
 
 async def create_bot_app():
     """Create and configure bot application"""
