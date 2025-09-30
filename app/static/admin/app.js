@@ -211,6 +211,8 @@ document.querySelectorAll('.tab').forEach(tab => {
             loadUsers(currentUserFilter);
         } else if (tab.dataset.tab === 'subscriptions') {
             loadSubscriptions(currentSubFilter);
+        } else if (tab.dataset.tab === 'events') {
+            loadEvents();
         }
     });
 });
@@ -388,6 +390,175 @@ function closeUserModal() {
     document.getElementById('userModal').style.display = 'none';
 }
 
+// Load events list
+async function loadEvents() {
+    const list = document.getElementById('eventsList');
+    list.innerHTML = '<div class="loading">Loading...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/admin/events?limit=100`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+
+        if (data.events.length === 0) {
+            list.innerHTML = '<div class="loading">No events found</div>';
+            return;
+        }
+
+        list.innerHTML = data.events.map(event => `
+            <div class="list-item">
+                <div class="list-item-header">
+                    <div class="list-item-username">${event.type}</div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="editEvent(${event.id})" style="padding: 4px 12px; background: #3390ec; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Edit</button>
+                        <button onclick="deleteEvent(${event.id})" style="padding: 4px 12px; background: #f44336; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Delete</button>
+                    </div>
+                </div>
+                <div class="list-item-details">
+                    <div class="detail-row">
+                        <div class="detail-label">Event ID</div>
+                        <div class="detail-value">${event.id}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">User</div>
+                        <div class="detail-value">${event.username ? '@' + event.username : event.user_id || 'N/A'}</div>
+                    </div>
+                    <div class="detail-row" style="grid-column: 1 / -1;">
+                        <div class="detail-label">Meta</div>
+                        <div class="detail-value" style="font-family: monospace; font-size: 11px; word-break: break-all;">${JSON.stringify(event.meta)}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Occurred At</div>
+                        <div class="detail-value">${formatDate(event.occurred_at)}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        list.innerHTML = '<div class="error">Error loading events</div>';
+        console.error('Error loading events:', error);
+    }
+}
+
+// Create event button handler
+document.getElementById('createEventBtn').addEventListener('click', () => {
+    document.getElementById('eventModalTitle').textContent = 'Create Event';
+    document.getElementById('eventForm').reset();
+    document.getElementById('eventId').value = '';
+    document.getElementById('eventModal').style.display = 'flex';
+});
+
+// Event form submit handler
+document.getElementById('eventForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const eventId = document.getElementById('eventId').value;
+    const userId = document.getElementById('eventUserId').value;
+    const type = document.getElementById('eventType').value;
+    const metaStr = document.getElementById('eventMeta').value;
+
+    let meta = {};
+    if (metaStr.trim()) {
+        try {
+            meta = JSON.parse(metaStr);
+        } catch (err) {
+            alert('Invalid JSON in Meta field');
+            return;
+        }
+    }
+
+    const payload = {
+        user_id: userId ? parseInt(userId) : null,
+        type: type,
+        meta: meta
+    };
+
+    try {
+        const url = eventId ? `${API_URL}/admin/events/${eventId}` : `${API_URL}/admin/events`;
+        const method = eventId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            closeEventModal();
+            loadEvents();
+        } else {
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error saving event:', error);
+        alert('Error saving event');
+    }
+});
+
+// Edit event
+async function editEvent(eventId) {
+    try {
+        const response = await fetch(`${API_URL}/admin/events?limit=500`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+        const event = data.events.find(e => e.id === eventId);
+
+        if (event) {
+            document.getElementById('eventModalTitle').textContent = 'Edit Event';
+            document.getElementById('eventId').value = event.id;
+            document.getElementById('eventUserId').value = event.user_id || '';
+            document.getElementById('eventType').value = event.type;
+            document.getElementById('eventMeta').value = JSON.stringify(event.meta, null, 2);
+            document.getElementById('eventModal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error loading event:', error);
+        alert('Error loading event');
+    }
+}
+
+// Delete event
+async function deleteEvent(eventId) {
+    if (!confirm('Are you sure you want to delete this event?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/events/${eventId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        if (response.ok) {
+            loadEvents();
+        } else {
+            const result = await response.json();
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error deleting event:', error);
+        alert('Error deleting event');
+    }
+}
+
+// Close event modal
+function closeEventModal() {
+    document.getElementById('eventModal').style.display = 'none';
+}
+
 // Initial load with access verification
 (async function() {
     const hasAccess = await verifyAccess();
@@ -403,6 +574,8 @@ function closeUserModal() {
                 loadUsers(currentUserFilter);
             } else if (activeTab === 'subscriptions') {
                 loadSubscriptions(currentSubFilter);
+            } else if (activeTab === 'events') {
+                loadEvents();
             }
         }, 30000);
     }

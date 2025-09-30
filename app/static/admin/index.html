@@ -81,6 +81,7 @@
         <div class="tabs">
             <button class="tab active" data-tab="users">Users</button>
             <button class="tab" data-tab="subscriptions">Subscriptions</button>
+            <button class="tab" data-tab="events">Events</button>
         </div>
 
         <div class="tab-content active" id="users-tab">
@@ -105,6 +106,15 @@
                 <div class="loading">Loading...</div>
             </div>
         </div>
+
+        <div class="tab-content" id="events-tab">
+            <div style="margin-bottom: 16px;">
+                <button id="createEventBtn" class="test-crm-btn">➕ Create Event</button>
+            </div>
+            <div class="list" id="eventsList">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
     </div>
 
     <!-- User Details Modal -->
@@ -116,6 +126,41 @@
             </div>
             <div id="userModalBody" class="modal-body">
                 Loading...
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Create/Edit Modal -->
+    <div id="eventModal" class="modal" onclick="if(event.target === this) closeEventModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="eventModalTitle">Create Event</h2>
+                <button class="modal-close" onclick="closeEventModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="eventForm" style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="hidden" id="eventId">
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">User ID (optional)</label>
+                        <input type="number" id="eventUserId" placeholder="User ID" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Event Type *</label>
+                        <input type="text" id="eventType" placeholder="e.g. user_registered, payment_success" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Meta (JSON)</label>
+                        <textarea id="eventMeta" placeholder='{"key": "value"}' rows="4" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: monospace;"></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
+                        <button type="button" onclick="closeEventModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
