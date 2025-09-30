@@ -213,6 +213,8 @@ document.querySelectorAll('.tab').forEach(tab => {
             loadSubscriptions(currentSubFilter);
         } else if (tab.dataset.tab === 'events') {
             loadEvents();
+        } else if (tab.dataset.tab === 'tasks') {
+            loadTasks();
         }
     });
 });
@@ -559,6 +561,206 @@ function closeEventModal() {
     document.getElementById('eventModal').style.display = 'none';
 }
 
+// ============================================================================
+// Admin Tasks CRUD
+// ============================================================================
+
+// Load tasks list
+async function loadTasks() {
+    const list = document.getElementById('tasksList');
+    list.innerHTML = '<div class="loading">Loading...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/admin/tasks?limit=100`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+
+        if (data.tasks.length === 0) {
+            list.innerHTML = '<div class="loading">No tasks found</div>';
+            return;
+        }
+
+        list.innerHTML = data.tasks.map(task => `
+            <div class="list-item">
+                <div class="list-item-header">
+                    <div class="list-item-username">${task.type}</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="list-item-badge ${task.status === 'sent' ? 'badge-active' : (task.status === 'failed' ? 'badge-blocked' : 'badge-paid')}">${task.status.toUpperCase()}</span>
+                        <button onclick="editTask(${task.id})" style="padding: 4px 12px; background: #3390ec; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Edit</button>
+                        <button onclick="deleteTask(${task.id})" style="padding: 4px 12px; background: #f44336; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Delete</button>
+                    </div>
+                </div>
+                <div class="list-item-details">
+                    <div class="detail-row">
+                        <div class="detail-label">Task ID</div>
+                        <div class="detail-value">${task.id}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">User</div>
+                        <div class="detail-value">${task.username ? '@' + task.username : task.user_id || 'N/A'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Due At</div>
+                        <div class="detail-value">${task.due_at ? formatDate(task.due_at) : '-'}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Sent At</div>
+                        <div class="detail-value">${task.sent_at ? formatDate(task.sent_at) : '-'}</div>
+                    </div>
+                    <div class="detail-row" style="grid-column: 1 / -1;">
+                        <div class="detail-label">Payload</div>
+                        <div class="detail-value" style="font-family: monospace; font-size: 11px; word-break: break-all;">${JSON.stringify(task.payload)}</div>
+                    </div>
+                    ${task.result_code ? `
+                        <div class="detail-row" style="grid-column: 1 / -1;">
+                            <div class="detail-label">Result Code</div>
+                            <div class="detail-value" style="color: #f44336;">${task.result_code}</div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        list.innerHTML = '<div class="error">Error loading tasks</div>';
+        console.error('Error loading tasks:', error);
+    }
+}
+
+// Create task button handler
+document.getElementById('createTaskBtn').addEventListener('click', () => {
+    document.getElementById('taskModalTitle').textContent = 'Create Task';
+    document.getElementById('taskForm').reset();
+    document.getElementById('taskId').value = '';
+    document.getElementById('taskModal').style.display = 'flex';
+});
+
+// Task form submit handler
+document.getElementById('taskForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const taskId = document.getElementById('taskId').value;
+    const userId = document.getElementById('taskUserId').value;
+    const type = document.getElementById('taskType').value;
+    const status = document.getElementById('taskStatus').value;
+    const payloadStr = document.getElementById('taskPayload').value;
+    const scheduledAt = document.getElementById('taskScheduledAt').value;
+    const dueAt = document.getElementById('taskDueAt').value;
+
+    let payload = {};
+    if (payloadStr.trim()) {
+        try {
+            payload = JSON.parse(payloadStr);
+        } catch (err) {
+            alert('Invalid JSON in Payload field');
+            return;
+        }
+    }
+
+    const data = {
+        user_id: userId ? parseInt(userId) : null,
+        type: type,
+        status: status,
+        payload: payload,
+        scheduled_at: scheduledAt || null,
+        due_at: dueAt || null
+    };
+
+    try {
+        const url = taskId ? `${API_URL}/admin/tasks/${taskId}` : `${API_URL}/admin/tasks`;
+        const method = taskId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            closeTaskModal();
+            loadTasks();
+        } else {
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error saving task:', error);
+        alert('Error saving task');
+    }
+});
+
+// Edit task
+async function editTask(taskId) {
+    try {
+        const response = await fetch(`${API_URL}/admin/tasks?limit=500`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+        const task = data.tasks.find(t => t.id === taskId);
+
+        if (task) {
+            document.getElementById('taskModalTitle').textContent = 'Edit Task';
+            document.getElementById('taskId').value = task.id;
+            document.getElementById('taskUserId').value = task.user_id || '';
+            document.getElementById('taskType').value = task.type;
+            document.getElementById('taskStatus').value = task.status;
+            document.getElementById('taskPayload').value = JSON.stringify(task.payload, null, 2);
+
+            // Convert ISO to datetime-local format
+            if (task.scheduled_at) {
+                document.getElementById('taskScheduledAt').value = task.scheduled_at.substring(0, 16);
+            }
+            if (task.due_at) {
+                document.getElementById('taskDueAt').value = task.due_at.substring(0, 16);
+            }
+
+            document.getElementById('taskModal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error loading task:', error);
+        alert('Error loading task');
+    }
+}
+
+// Delete task
+async function deleteTask(taskId) {
+    if (!confirm('Are you sure you want to delete this task?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/tasks/${taskId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        if (response.ok) {
+            loadTasks();
+        } else {
+            const result = await response.json();
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error deleting task:', error);
+        alert('Error deleting task');
+    }
+}
+
+// Close task modal
+function closeTaskModal() {
+    document.getElementById('taskModal').style.display = 'none';
+}
+
 // Initial load with access verification
 (async function() {
     const hasAccess = await verifyAccess();
@@ -576,6 +778,8 @@ function closeEventModal() {
                 loadSubscriptions(currentSubFilter);
             } else if (activeTab === 'events') {
                 loadEvents();
+            } else if (activeTab === 'tasks') {
+                loadTasks();
             }
         }, 30000);
     }

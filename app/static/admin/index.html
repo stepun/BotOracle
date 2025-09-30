@@ -82,6 +82,7 @@
             <button class="tab active" data-tab="users">Users</button>
             <button class="tab" data-tab="subscriptions">Subscriptions</button>
             <button class="tab" data-tab="events">Events</button>
+            <button class="tab" data-tab="tasks">Tasks</button>
         </div>
 
         <div class="tab-content active" id="users-tab">
@@ -112,6 +113,15 @@
                 <button id="createEventBtn" class="test-crm-btn">➕ Create Event</button>
             </div>
             <div class="list" id="eventsList">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tasks-tab">
+            <div style="margin-bottom: 16px;">
+                <button id="createTaskBtn" class="test-crm-btn">➕ Create Task</button>
+            </div>
+            <div class="list" id="tasksList">
                 <div class="loading">Loading...</div>
             </div>
         </div>
@@ -159,6 +169,62 @@
                     <div style="display: flex; gap: 8px; margin-top: 8px;">
                         <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
                         <button type="button" onclick="closeEventModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Create/Edit Modal -->
+    <div id="taskModal" class="modal" onclick="if(event.target === this) closeTaskModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="taskModalTitle">Create Task</h2>
+                <button class="modal-close" onclick="closeTaskModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="taskForm" style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="hidden" id="taskId">
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">User ID (optional)</label>
+                        <input type="number" id="taskUserId" placeholder="User ID" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Task Type *</label>
+                        <input type="text" id="taskType" placeholder="e.g. PING, NUDGE, THANKS" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Status *</label>
+                        <select id="taskStatus" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                            <option value="scheduled">scheduled</option>
+                            <option value="due">due</option>
+                            <option value="sent">sent</option>
+                            <option value="failed">failed</option>
+                            <option value="cancelled">cancelled</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Payload (JSON)</label>
+                        <textarea id="taskPayload" placeholder='{"key": "value"}' rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: monospace;"></textarea>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Scheduled At</label>
+                        <input type="datetime-local" id="taskScheduledAt" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Due At</label>
+                        <input type="datetime-local" id="taskDueAt" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
+                        <button type="button" onclick="closeTaskModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
                     </div>
                 </form>
             </div>
