@@ -199,6 +199,11 @@ class CRMPlanner:
             "evening": [17, 21]
         })
 
+        # Handle JSON string from database
+        if isinstance(windows, str):
+            import json
+            windows = json.loads(windows)
+
         # Select random window with weights (morning slightly preferred)
         window_choices = list(windows.keys())
         window_weights = [0.4, 0.3, 0.3]  # morning, day, evening
