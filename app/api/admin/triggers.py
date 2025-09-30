@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import logging
 
@@ -157,17 +157,8 @@ async def test_ai_responses(
 
 @router.post("/admin/test/crm")
 async def test_crm_for_admin(_: bool = Depends(verify_admin_token)):
-    """Test CRM system for admin user"""
+    """Test CRM system - creates all task types for admin user"""
     try:
-        from app.crm.planner import crm_planner
-        from app.crm.dispatcher import crm_dispatcher
-
-        if not crm_dispatcher:
-            return {
-                "status": "error",
-                "message": "CRM dispatcher not initialized"
-            }
-
         # Get admin user from config
         admin_id = config.ADMIN_IDS[0] if config.ADMIN_IDS else None
         if not admin_id:
@@ -192,44 +183,54 @@ async def test_crm_for_admin(_: bool = Depends(verify_admin_token)):
                 "message": f"Admin user {admin_id} not found in database"
             }
 
-        user_data = dict(user_row)
+        user_id = user_row['id']
 
-        # Test 1: CRM Planner
-        logger.info(f"Testing CRM planner for admin {admin_id}")
-        tasks_created = await crm_planner.plan_for_user(user_data)
+        # Calculate due_at as current UTC time + 1 minute
+        now_utc = datetime.utcnow()
+        due_at = now_utc + timedelta(minutes=1)
 
-        # Get created tasks
-        created_tasks = await db.fetch(
-            """
-            SELECT id, type, due_at, status
-            FROM admin_tasks
-            WHERE user_id = $1 AND status = 'pending'
-            ORDER BY due_at DESC
-            LIMIT 10
-            """,
-            user_data['id']
-        )
+        # All task types to create
+        task_types = [
+            'PING',
+            'NUDGE_SUB',
+            'DAILY_MSG_PROMPT',
+            'DAILY_MSG_PUSH',
+            'LIMIT_INFO',
+            'RECOVERY',
+            'POST_SUB_ONBOARD'
+        ]
 
-        # Test 2: CRM Dispatcher
-        logger.info(f"Testing CRM dispatcher for admin {admin_id}")
-        dispatch_stats = await crm_dispatcher.dispatch_due_tasks(limit=5)
+        # Create all task types
+        created_tasks = []
+        for task_type in task_types:
+            row = await db.fetchrow(
+                """
+                INSERT INTO admin_tasks (user_id, type, status, due_at, created_at, updated_at, payload)
+                VALUES ($1, $2, 'pending', $3, $4, $4, '{}')
+                RETURNING id, type, status, due_at, created_at
+                """,
+                user_id,
+                task_type,
+                due_at,
+                now_utc
+            )
+            created_tasks.append({
+                "id": row['id'],
+                "type": row['type'],
+                "status": row['status'],
+                "due_at": row['due_at'].isoformat() + 'Z',
+                "created_at": row['created_at'].isoformat() + 'Z'
+            })
+
+        logger.info(f"Created {len(created_tasks)} test tasks for admin {admin_id}")
 
         return {
             "status": "success",
             "admin_id": admin_id,
-            "planner": {
-                "tasks_created": tasks_created,
-                "created_tasks": [
-                    {
-                        "id": t['id'],
-                        "type": t['type'],
-                        "due_at": t['due_at'].isoformat(),
-                        "status": t['status']
-                    } for t in created_tasks
-                ]
-            },
-            "dispatcher": dispatch_stats,
-            "timestamp": datetime.now().isoformat()
+            "tasks_created": len(created_tasks),
+            "due_at_utc": due_at.isoformat() + 'Z',
+            "current_time_utc": now_utc.isoformat() + 'Z',
+            "tasks": created_tasks
         }
 
     except Exception as e:
