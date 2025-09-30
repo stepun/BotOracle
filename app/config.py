@@ -7,6 +7,7 @@ load_dotenv()
 class Config:
     # Telegram Bot
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
+    BOT_URL: str = os.getenv("BOT_URL", "https://t.me/ai_consultant_bot")
 
     # Robokassa
     ROBO_LOGIN: str = os.getenv("ROBO_LOGIN", "")
