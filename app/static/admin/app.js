@@ -271,17 +271,18 @@ document.getElementById('testCrmBtn').addEventListener('click', async () => {
                     <strong>Admin ID:</strong> ${data.admin_id}
                 </div>
                 <div class="result-item">
-                    <strong>Planner:</strong> Создано задач: ${data.planner.tasks_created}
+                    <strong>Создано задач:</strong> ${data.tasks_created}
                     <br>
-                    ${data.planner.created_tasks.map(t =>
-                        `<div style="margin-left: 10px; margin-top: 5px;">• ${t.type} - ${new Date(t.due_at).toLocaleString()}</div>`
+                    <strong>Время выполнения:</strong> ${new Date(data.due_at_utc).toLocaleString()}
+                    <br>
+                    <strong>Текущее время:</strong> ${new Date(data.current_time_utc).toLocaleString()}
+                    <br><br>
+                    ${data.tasks.map(t =>
+                        `<div style="margin-left: 10px; margin-top: 5px;">• ${t.type} (ID: ${t.id}) - ${t.status}</div>`
                     ).join('')}
                 </div>
-                <div class="result-item">
-                    <strong>Dispatcher:</strong>
-                    <br>• Отправлено: ${data.dispatcher.sent}
-                    <br>• Ошибки: ${data.dispatcher.failed}
-                    <br>• Заблокировано: ${data.dispatcher.blocked}
+                <div class="result-item" style="margin-top: 10px; color: #666; font-size: 13px;">
+                    ℹ️ Задачи будут отправлены автоматически через ~1 минуту
                 </div>
             `;
             resultsDiv.style.display = 'block';
