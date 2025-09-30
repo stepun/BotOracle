@@ -440,11 +440,11 @@ class AdminTaskModel:
         # Default to 24 hours if not set
         postpone_hours = postpone_hours or 24
 
-        # Reschedule upcoming tasks
+        # Reschedule upcoming tasks from current time
         result = await db.execute(
             """
             UPDATE admin_tasks
-            SET due_at = due_at + interval '%s hours',
+            SET due_at = now() + interval '%s hours',
                 updated_at = now()
             WHERE user_id = $1
             AND type = ANY($2)
