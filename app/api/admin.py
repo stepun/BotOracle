@@ -345,7 +345,25 @@ async def health_check():
     try:
         # Simple database check
         await db.fetchval("SELECT 1")
-        return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+        # Get git commit hash
+        import subprocess
+        try:
+            git_hash = subprocess.check_output(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                cwd='/app',
+                stderr=subprocess.DEVNULL
+            ).decode('utf-8').strip()
+        except Exception:
+            git_hash = "unknown"
+
+        return {
+            "status": "healthy",
+            "service": "Bot Oracle",
+            "version": "2.0.0",
+            "commit": git_hash,
+            "timestamp": datetime.now().isoformat()
+        }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service unhealthy")
