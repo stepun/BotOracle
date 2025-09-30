@@ -22,6 +22,8 @@ services:
       - .env
     volumes:
       - ./logs:/app/logs
+      - ./app:/app/app
+      - ./migrations:/app/migrations
     ports:
       - "127.0.0.1:8888:8000"
     restart: unless-stopped
