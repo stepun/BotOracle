@@ -215,6 +215,10 @@ document.querySelectorAll('.tab').forEach(tab => {
             loadEvents();
         } else if (tab.dataset.tab === 'tasks') {
             loadTasks();
+        } else if (tab.dataset.tab === 'templates') {
+            loadTemplates();
+        } else if (tab.dataset.tab === 'daily-messages') {
+            loadDailyMessages();
         }
     });
 });
@@ -761,6 +765,336 @@ function closeTaskModal() {
     document.getElementById('taskModal').style.display = 'none';
 }
 
+// ============================================================================
+// Admin Templates CRUD
+// ============================================================================
+
+// Load templates list
+async function loadTemplates() {
+    const list = document.getElementById('templatesList');
+    list.innerHTML = '<div class="loading">Loading...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/admin/templates`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+
+        if (data.templates.length === 0) {
+            list.innerHTML = '<div class="loading">No templates found</div>';
+            return;
+        }
+
+        list.innerHTML = data.templates.map(template => `
+            <div class="list-item">
+                <div class="list-item-header">
+                    <div class="list-item-username">${template.type} - ${template.tone}</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="list-item-badge ${template.enabled ? 'badge-active' : 'badge-blocked'}">${template.enabled ? 'ENABLED' : 'DISABLED'}</span>
+                        <button onclick="editTemplate(${template.id})" style="padding: 4px 12px; background: #3390ec; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Edit</button>
+                        <button onclick="deleteTemplate(${template.id})" style="padding: 4px 12px; background: #f44336; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Delete</button>
+                    </div>
+                </div>
+                <div class="list-item-details">
+                    <div class="detail-row">
+                        <div class="detail-label">Template ID</div>
+                        <div class="detail-value">${template.id}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Weight</div>
+                        <div class="detail-value">${template.weight}</div>
+                    </div>
+                    <div class="detail-row" style="grid-column: 1 / -1;">
+                        <div class="detail-label">Text</div>
+                        <div class="detail-value" style="word-break: break-word;">${template.text.substring(0, 150)}${template.text.length > 150 ? '...' : ''}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        list.innerHTML = '<div class="error">Error loading templates</div>';
+        console.error('Error loading templates:', error);
+    }
+}
+
+// Create template button handler
+document.getElementById('createTemplateBtn').addEventListener('click', () => {
+    document.getElementById('templateModalTitle').textContent = 'Create Template';
+    document.getElementById('templateForm').reset();
+    document.getElementById('templateId').value = '';
+    document.getElementById('templateEnabled').checked = true;
+    document.getElementById('templateWeight').value = '10';
+    document.getElementById('templateModal').style.display = 'flex';
+});
+
+// Template form submit handler
+document.getElementById('templateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const templateId = document.getElementById('templateId').value;
+    const type = document.getElementById('templateType').value;
+    const tone = document.getElementById('templateTone').value;
+    const text = document.getElementById('templateText').value;
+    const enabled = document.getElementById('templateEnabled').checked;
+    const weight = parseInt(document.getElementById('templateWeight').value);
+
+    const payload = {
+        type: type,
+        tone: tone,
+        text: text,
+        enabled: enabled,
+        weight: weight
+    };
+
+    try {
+        const url = templateId ? `${API_URL}/admin/templates/${templateId}` : `${API_URL}/admin/templates`;
+        const method = templateId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            closeTemplateModal();
+            loadTemplates();
+        } else {
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error saving template:', error);
+        alert('Error saving template');
+    }
+});
+
+// Edit template
+async function editTemplate(templateId) {
+    try {
+        const response = await fetch(`${API_URL}/admin/templates`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+        const template = data.templates.find(t => t.id === templateId);
+
+        if (template) {
+            document.getElementById('templateModalTitle').textContent = 'Edit Template';
+            document.getElementById('templateId').value = template.id;
+            document.getElementById('templateType').value = template.type;
+            document.getElementById('templateTone').value = template.tone;
+            document.getElementById('templateText').value = template.text;
+            document.getElementById('templateEnabled').checked = template.enabled;
+            document.getElementById('templateWeight').value = template.weight;
+            document.getElementById('templateModal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error loading template:', error);
+        alert('Error loading template');
+    }
+}
+
+// Delete template
+async function deleteTemplate(templateId) {
+    if (!confirm('Are you sure you want to delete this template?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/templates/${templateId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        if (response.ok) {
+            loadTemplates();
+        } else {
+            const result = await response.json();
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error deleting template:', error);
+        alert('Error deleting template');
+    }
+}
+
+// Close template modal
+function closeTemplateModal() {
+    document.getElementById('templateModal').style.display = 'none';
+}
+
+// ============================================================================
+// Daily Messages CRUD
+// ============================================================================
+
+// Load daily messages list
+async function loadDailyMessages() {
+    const list = document.getElementById('dailyMessagesList');
+    list.innerHTML = '<div class="loading">Loading...</div>';
+
+    try {
+        const response = await fetch(`${API_URL}/admin/daily-messages`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+
+        if (data.messages.length === 0) {
+            list.innerHTML = '<div class="loading">No daily messages found</div>';
+            return;
+        }
+
+        list.innerHTML = data.messages.map(message => `
+            <div class="list-item">
+                <div class="list-item-header">
+                    <div class="list-item-username">Message #${message.id}</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="list-item-badge ${message.is_active ? 'badge-active' : 'badge-blocked'}">${message.is_active ? 'ACTIVE' : 'INACTIVE'}</span>
+                        <button onclick="editDailyMessage(${message.id})" style="padding: 4px 12px; background: #3390ec; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Edit</button>
+                        <button onclick="deleteDailyMessage(${message.id})" style="padding: 4px 12px; background: #f44336; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;">Delete</button>
+                    </div>
+                </div>
+                <div class="list-item-details">
+                    <div class="detail-row">
+                        <div class="detail-label">Message ID</div>
+                        <div class="detail-value">${message.id}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Weight</div>
+                        <div class="detail-value">${message.weight}</div>
+                    </div>
+                    <div class="detail-row" style="grid-column: 1 / -1;">
+                        <div class="detail-label">Text</div>
+                        <div class="detail-value" style="word-break: break-word;">${message.text.substring(0, 100)}${message.text.length > 100 ? '...' : ''}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        list.innerHTML = '<div class="error">Error loading daily messages</div>';
+        console.error('Error loading daily messages:', error);
+    }
+}
+
+// Create daily message button handler
+document.getElementById('createDailyMsgBtn').addEventListener('click', () => {
+    document.getElementById('dailyMessageModalTitle').textContent = 'Create Daily Message';
+    document.getElementById('dailyMessageForm').reset();
+    document.getElementById('dailyMessageId').value = '';
+    document.getElementById('dailyMessageActive').checked = true;
+    document.getElementById('dailyMessageWeight').value = '10';
+    document.getElementById('dailyMessageModal').style.display = 'flex';
+});
+
+// Daily message form submit handler
+document.getElementById('dailyMessageForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const messageId = document.getElementById('dailyMessageId').value;
+    const text = document.getElementById('dailyMessageText').value;
+    const isActive = document.getElementById('dailyMessageActive').checked;
+    const weight = parseInt(document.getElementById('dailyMessageWeight').value);
+
+    const payload = {
+        text: text,
+        is_active: isActive,
+        weight: weight
+    };
+
+    try {
+        const url = messageId ? `${API_URL}/admin/daily-messages/${messageId}` : `${API_URL}/admin/daily-messages`;
+        const method = messageId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            closeDailyMessageModal();
+            loadDailyMessages();
+        } else {
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error saving daily message:', error);
+        alert('Error saving daily message');
+    }
+});
+
+// Edit daily message
+async function editDailyMessage(messageId) {
+    try {
+        const response = await fetch(`${API_URL}/admin/daily-messages`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+        const message = data.messages.find(m => m.id === messageId);
+
+        if (message) {
+            document.getElementById('dailyMessageModalTitle').textContent = 'Edit Daily Message';
+            document.getElementById('dailyMessageId').value = message.id;
+            document.getElementById('dailyMessageText').value = message.text;
+            document.getElementById('dailyMessageActive').checked = message.is_active;
+            document.getElementById('dailyMessageWeight').value = message.weight;
+            document.getElementById('dailyMessageModal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error loading daily message:', error);
+        alert('Error loading daily message');
+    }
+}
+
+// Delete daily message
+async function deleteDailyMessage(messageId) {
+    if (!confirm('Are you sure you want to delete this daily message?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/daily-messages/${messageId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        if (response.ok) {
+            loadDailyMessages();
+        } else {
+            const result = await response.json();
+            alert(`Error: ${result.detail || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error deleting daily message:', error);
+        alert('Error deleting daily message');
+    }
+}
+
+// Close daily message modal
+function closeDailyMessageModal() {
+    document.getElementById('dailyMessageModal').style.display = 'none';
+}
+
 // Initial load with access verification
 (async function() {
     const hasAccess = await verifyAccess();
@@ -780,6 +1114,10 @@ function closeTaskModal() {
                 loadEvents();
             } else if (activeTab === 'tasks') {
                 loadTasks();
+            } else if (activeTab === 'templates') {
+                loadTemplates();
+            } else if (activeTab === 'daily-messages') {
+                loadDailyMessages();
             }
         }, 30000);
     }

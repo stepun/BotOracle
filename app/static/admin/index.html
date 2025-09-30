@@ -83,6 +83,8 @@
             <button class="tab" data-tab="subscriptions">Subscriptions</button>
             <button class="tab" data-tab="events">Events</button>
             <button class="tab" data-tab="tasks">Tasks</button>
+            <button class="tab" data-tab="templates">Templates</button>
+            <button class="tab" data-tab="daily-messages">Daily Msgs</button>
         </div>
 
         <div class="tab-content active" id="users-tab">
@@ -122,6 +124,24 @@
                 <button id="createTaskBtn" class="test-crm-btn">➕ Create Task</button>
             </div>
             <div class="list" id="tasksList">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="templates-tab">
+            <div style="margin-bottom: 16px;">
+                <button id="createTemplateBtn" class="test-crm-btn">➕ Create Template</button>
+            </div>
+            <div class="list" id="templatesList">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="daily-messages-tab">
+            <div style="margin-bottom: 16px;">
+                <button id="createDailyMsgBtn" class="test-crm-btn">➕ Create Daily Message</button>
+            </div>
+            <div class="list" id="dailyMessagesList">
                 <div class="loading">Loading...</div>
             </div>
         </div>
@@ -225,6 +245,86 @@
                     <div style="display: flex; gap: 8px; margin-top: 8px;">
                         <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
                         <button type="button" onclick="closeTaskModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Create/Edit Modal -->
+    <div id="templateModal" class="modal" onclick="if(event.target === this) closeTemplateModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="templateModalTitle">Create Template</h2>
+                <button class="modal-close" onclick="closeTemplateModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="templateForm" style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="hidden" id="templateId">
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Template Type *</label>
+                        <input type="text" id="templateType" placeholder="e.g. PING, NUDGE, THANKS" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Tone *</label>
+                        <input type="text" id="templateTone" placeholder="e.g. casual, supportive, wisdom" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Template Text *</label>
+                        <textarea id="templateText" placeholder="Template text with {name}, {age}, {gender} placeholders" rows="5" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;"></textarea>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Weight *</label>
+                        <input type="number" id="templateWeight" placeholder="1-100" min="1" max="100" value="10" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="templateEnabled" checked style="width: 20px; height: 20px; cursor: pointer;">
+                        <label for="templateEnabled" style="font-size: 14px; cursor: pointer;">Enabled</label>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
+                        <button type="button" onclick="closeTemplateModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Message Create/Edit Modal -->
+    <div id="dailyMessageModal" class="modal" onclick="if(event.target === this) closeDailyMessageModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="dailyMessageModalTitle">Create Daily Message</h2>
+                <button class="modal-close" onclick="closeDailyMessageModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="dailyMessageForm" style="display: flex; flex-direction: column; gap: 12px;">
+                    <input type="hidden" id="dailyMessageId">
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Message Text *</label>
+                        <textarea id="dailyMessageText" placeholder="Daily message text" rows="5" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;"></textarea>
+                    </div>
+
+                    <div>
+                        <label style="display: block; margin-bottom: 4px; font-size: 13px; opacity: 0.8;">Weight *</label>
+                        <input type="number" id="dailyMessageWeight" placeholder="1-100" min="1" max="100" value="10" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="dailyMessageActive" checked style="width: 20px; height: 20px; cursor: pointer;">
+                        <label for="dailyMessageActive" style="font-size: 14px; cursor: pointer;">Active</label>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button type="submit" class="test-crm-btn" style="flex: 1;">Save</button>
+                        <button type="button" onclick="closeDailyMessageModal()" style="flex: 1; padding: 12px; background: #ccc; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;">Cancel</button>
                     </div>
                 </form>
             </div>
