@@ -312,6 +312,14 @@ async def question_handler(message: types.Message, state: FSMContext):
             payload={'triggered_by': 'user_message'}
         )
 
+        # Reschedule upcoming PING/NUDGE tasks when user replies
+        rescheduled_count = await AdminTaskModel.reschedule_upcoming_tasks(
+            user['id'],
+            task_types=['PING', 'NUDGE_SUB']
+        )
+        if rescheduled_count > 0:
+            logger.info(f"Rescheduled {rescheduled_count} upcoming tasks for user {user['id']}")
+
     except Exception as e:
         logger.error(f"Error in question handler: {e}")
         await message.answer("Произошла ошибка. Попробуйте позже.")

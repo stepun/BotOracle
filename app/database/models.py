@@ -421,6 +421,48 @@ class AdminTaskModel:
         )
         return count or 0
 
+    @staticmethod
+    async def reschedule_upcoming_tasks(user_id: int, task_types: list, hours_ahead: int = 48):
+        """
+        Reschedule upcoming tasks (PING, NUDGE_SUB) when user sends a message.
+        Only reschedules tasks that are scheduled within next `hours_ahead` hours.
+        Returns count of rescheduled tasks.
+        """
+        # Get postpone_on_reply setting for user
+        postpone_hours = await db.fetchval(
+            """
+            SELECT postpone_on_reply FROM contact_cadence
+            WHERE user_id = $1
+            """,
+            user_id
+        )
+
+        # Default to 24 hours if not set
+        postpone_hours = postpone_hours or 24
+
+        # Reschedule upcoming tasks
+        result = await db.execute(
+            """
+            UPDATE admin_tasks
+            SET due_at = due_at + interval '%s hours',
+                updated_at = now()
+            WHERE user_id = $1
+            AND type = ANY($2)
+            AND status IN ('scheduled', 'due')
+            AND due_at > now()
+            AND due_at <= now() + interval '%s hours'
+            """ % (postpone_hours, hours_ahead),
+            user_id, task_types
+        )
+
+        # Parse result "UPDATE N" to get count
+        count = int(result.split()[-1]) if result and result.startswith('UPDATE') else 0
+
+        if count > 0:
+            logger.info(f"Rescheduled {count} tasks for user {user_id} by {postpone_hours}h")
+
+        return count
+
 
 class AdminTemplateModel:
     @staticmethod
