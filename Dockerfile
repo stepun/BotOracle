@@ -16,6 +16,7 @@ RUN git rev-parse --short HEAD > /app/GIT_COMMIT && rm -rf .git
 
 COPY app/ ./app/
 COPY config/ ./config/
+COPY README.md ./
 
 RUN mkdir -p /app/logs
 
