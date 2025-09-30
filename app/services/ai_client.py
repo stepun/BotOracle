@@ -6,6 +6,7 @@ import os
 import logging
 from typing import Dict, Any, Optional, AsyncGenerator
 from openai import OpenAI
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,29 @@ class AIClient:
             logger.warning("OPENAI_API_KEY not set, using stub responses")
             self.client = None
         else:
-            self.client = OpenAI(api_key=api_key)
+            # Check if SOCKS5 proxy is configured
+            socks5_proxy = os.getenv("SOCKS5_PROXY")
+
+            if socks5_proxy:
+                logger.info(f"Configuring OpenAI client with SOCKS5 proxy: {socks5_proxy}")
+                try:
+                    # Create httpx client with SOCKS5 proxy support
+                    from httpx_socks import SyncProxyTransport
+
+                    transport = SyncProxyTransport.from_url(socks5_proxy)
+                    http_client = httpx.Client(transport=transport, timeout=30.0)
+
+                    self.client = OpenAI(api_key=api_key, http_client=http_client)
+                    logger.info("OpenAI client configured with SOCKS5 proxy successfully")
+                except ImportError:
+                    logger.error("httpx_socks not installed, falling back to direct connection")
+                    self.client = OpenAI(api_key=api_key)
+                except Exception as e:
+                    logger.error(f"Error configuring SOCKS5 proxy: {e}, falling back to direct connection")
+                    self.client = OpenAI(api_key=api_key)
+            else:
+                logger.info("No SOCKS5 proxy configured, using direct connection")
+                self.client = OpenAI(api_key=api_key)
 
     async def get_admin_response(self, question: str, user_context: Dict[str, Any]) -> str:
         """Generate Administrator persona response - emotional, helpful, playful"""
