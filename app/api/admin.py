@@ -245,10 +245,10 @@ async def get_user_details(
         # Get daily messages history
         daily_messages = await db.fetch(
             """
-            SELECT sent_date, sent_at
+            SELECT sent_date
             FROM daily_sent
             WHERE user_id = $1
-            ORDER BY sent_at DESC
+            ORDER BY sent_date DESC
             LIMIT 50
             """,
             user_id
@@ -305,8 +305,7 @@ async def get_user_details(
                 'subscription_end': user['subscription_end'].isoformat() if user['subscription_end'] else None
             },
             'daily_messages': [{
-                'date': msg['sent_date'].isoformat(),
-                'sent_at': msg['sent_at'].isoformat() if msg['sent_at'] else None
+                'date': msg['sent_date'].isoformat()
             } for msg in daily_messages],
             'oracle_questions': [{
                 'question': q['question'],
