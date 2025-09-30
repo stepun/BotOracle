@@ -347,13 +347,9 @@ async def health_check():
         await db.fetchval("SELECT 1")
 
         # Get git commit hash
-        import subprocess
         try:
-            git_hash = subprocess.check_output(
-                ['git', 'rev-parse', '--short', 'HEAD'],
-                cwd='/app',
-                stderr=subprocess.DEVNULL
-            ).decode('utf-8').strip()
+            with open('/app/GIT_COMMIT', 'r') as f:
+                git_hash = f.read().strip()
         except Exception:
             git_hash = "unknown"
 
