@@ -156,15 +156,18 @@ async def test_ai_responses(
         raise HTTPException(status_code=500, detail="Failed to test AI responses")
 
 @router.post("/admin/test/crm")
-async def test_crm_for_admin(_: bool = Depends(verify_admin_token)):
-    """Test CRM system - creates all task types for admin user"""
+async def test_crm_for_admin(
+    tg_user_id: Optional[int] = Query(None, description="Telegram user ID to test (defaults to first admin)"),
+    _: bool = Depends(verify_admin_token)
+):
+    """Test CRM system - creates all task types for specified user"""
     try:
-        # Get admin user from config
-        admin_id = config.ADMIN_IDS[0] if config.ADMIN_IDS else None
+        # Get admin user ID: use provided or default to first from config
+        admin_id = tg_user_id if tg_user_id else (config.ADMIN_IDS[0] if config.ADMIN_IDS else None)
         if not admin_id:
             return {
                 "status": "error",
-                "message": "No admin ID configured"
+                "message": "No admin ID provided or configured"
             }
 
         # Get admin user data

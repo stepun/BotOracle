@@ -4,6 +4,7 @@ tg.expand();
 
 const API_URL = window.location.origin;
 let ADMIN_TOKEN = null;
+let CURRENT_USER_TG_ID = null;
 
 let currentUserFilter = '';
 let currentSubFilter = '';
@@ -38,6 +39,11 @@ async function verifyAccess() {
 
         const data = await response.json();
         ADMIN_TOKEN = data.token;
+
+        // Store current user Telegram ID
+        if (data.user && data.user.id) {
+            CURRENT_USER_TG_ID = data.user.id;
+        }
 
         // Show username in header
         const header = document.querySelector('.header h1');
@@ -255,7 +261,11 @@ document.getElementById('testCrmBtn').addEventListener('click', async () => {
     resultsDiv.style.display = 'none';
 
     try {
-        const response = await fetch(`${API_URL}/admin/test/crm`, {
+        const url = CURRENT_USER_TG_ID
+            ? `${API_URL}/admin/test/crm?tg_user_id=${CURRENT_USER_TG_ID}`
+            : `${API_URL}/admin/test/crm`;
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${ADMIN_TOKEN}`
