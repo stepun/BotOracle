@@ -32,9 +32,13 @@ async def start_command(message: types.Message, state: FSMContext):
                 persona.wrap("с возвращением! 🌟 я помню тебя. что будем делать?")
             )
 
-            # Send main menu
+            # Check subscription and send appropriate main menu
             from app.bot.keyboards import get_main_menu
-            await message.answer("Выбери действие:", reply_markup=get_main_menu())
+            from app.database.models import SubscriptionModel
+            subscription = await SubscriptionModel.get_active_subscription(user['id'])
+            has_subscription = subscription is not None
+
+            await message.answer("Выбери действие:", reply_markup=get_main_menu(has_subscription))
 
             await state.clear()
             return
@@ -147,9 +151,9 @@ async def process_gender(message: types.Message, state: FSMContext):
             reply_markup=ReplyKeyboardRemove()
         )
 
-        # Create main menu
+        # Create main menu (new users don't have subscription)
         from app.bot.keyboards import get_main_menu
-        await message.answer("Выбери действие:", reply_markup=get_main_menu())
+        await message.answer("Выбери действие:", reply_markup=get_main_menu(has_subscription=False))
 
         await state.set_state(OnboardingStates.completed)
 
