@@ -57,4 +57,5 @@ Thumbs.db
 *.temp
 
 # Local dev scripts
-reset_my_subscription.shCLAUDE.md
+reset_my_subscription.sh
+CLAUDE.md
