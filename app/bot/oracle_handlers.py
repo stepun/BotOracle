@@ -329,7 +329,7 @@ async def question_handler(message: types.Message, state: FSMContext):
 
             if subscription:
                 # Subscriber asking question to Admin (not Oracle) - NO counter used
-                user_context = {'age': user.get('age'), 'gender': user.get('gender')}
+                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': True}
                 answer = await call_admin_ai(question, user_context)
 
                 # Save question without counter (source is still tracked for analytics)
@@ -360,7 +360,7 @@ async def question_handler(message: types.Message, state: FSMContext):
                     return
 
                 # Call Administrator AI (emotional, helpful response)
-                user_context = {'age': user.get('age'), 'gender': user.get('gender')}
+                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False}
                 answer = await call_admin_ai(question, user_context)
 
                 # Save question and answer
