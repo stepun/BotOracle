@@ -126,7 +126,7 @@ ai-consultant/
 ### 1. Клонирование проекта
 
 ```bash
-git clone git@NTMY:stepun/ai-consultant.git
+git clone <your-repository-url>
 cd ai-consultant
 ```
 
@@ -628,7 +628,7 @@ ssh Pi4-2
 
 # Клонировать репозиторий
 cd /home/lexun
-git clone git@NTMY:stepun/ai-consultant.git
+git clone <your-repository-url>
 cd ai-consultant
 
 # Настроить .env
