@@ -206,7 +206,7 @@ async def test_crm_for_admin(_: bool = Depends(verify_admin_token)):
             row = await db.fetchrow(
                 """
                 INSERT INTO admin_tasks (user_id, type, status, due_at, created_at, updated_at, payload)
-                VALUES ($1, $2, 'pending', $3, $4, $4, '{}')
+                VALUES ($1, $2, 'scheduled', $3, $4, $4, '{}')
                 RETURNING id, type, status, due_at, created_at
                 """,
                 user_id,
