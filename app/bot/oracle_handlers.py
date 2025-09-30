@@ -366,6 +366,30 @@ async def buy_subscription_callback(callback: types.CallbackQuery):
         logger.error(f"Error in subscription callback: {e}")
         await callback.answer("Произошла ошибка. Попробуйте позже.")
 
+@router.message(F.text == "/admin")
+async def admin_panel_handler(message: types.Message):
+    """Open admin panel for authorized admins"""
+    from app.config import config
+
+    if message.from_user.id not in config.ADMIN_IDS:
+        await message.answer("⛔️ Эта команда доступна только администраторам")
+        return
+
+    keyboard = types.InlineKeyboardMarkup(
+        inline_keyboard=[[
+            types.InlineKeyboardButton(
+                text="📊 Открыть админ-панель",
+                web_app=types.WebAppInfo(url="https://consultant.sh3.su/admin/")
+            )
+        ]]
+    )
+
+    await message.answer(
+        "👨‍💼 Добро пожаловать в админ-панель!\n\n"
+        "Нажми кнопку ниже, чтобы открыть панель управления.",
+        reply_markup=keyboard
+    )
+
 @router.message(F.text == "/help")
 async def help_handler(message: types.Message):
     """Show help information"""
