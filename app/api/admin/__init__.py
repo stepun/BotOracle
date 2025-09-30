@@ -13,6 +13,7 @@ from app.api.admin import tasks
 from app.api.admin import templates
 from app.api.admin import daily_messages
 from app.api.admin import triggers
+from app.api.admin import prompts
 
 # Export auth functions for use in other modules
 from app.api.admin.auth import verify_admin_token, validate_telegram_webapp_data
@@ -30,6 +31,7 @@ router.include_router(tasks.router, tags=["tasks"])
 router.include_router(templates.router, tags=["templates"])
 router.include_router(daily_messages.router, tags=["daily_messages"])
 router.include_router(triggers.router, tags=["triggers"])
+router.include_router(prompts.router, tags=["prompts"])
 
 __all__ = [
     'router',

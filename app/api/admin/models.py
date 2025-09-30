@@ -56,3 +56,18 @@ class DailyMessageUpdate(BaseModel):
     text: Optional[str] = None
     is_active: Optional[bool] = None
     weight: Optional[int] = None
+
+# AI Prompt models
+class PromptCreate(BaseModel):
+    key: str
+    name: str
+    prompt_text: str
+    description: Optional[str] = None
+    is_active: bool = True
+
+class PromptUpdate(BaseModel):
+    key: Optional[str] = None
+    name: Optional[str] = None
+    prompt_text: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None

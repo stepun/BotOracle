@@ -7,6 +7,9 @@ import logging
 from typing import Dict, Any, Optional, AsyncGenerator
 from openai import OpenAI
 import httpx
+from datetime import datetime, timedelta
+
+from app.database.connection import db
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +46,54 @@ class AIClient:
                 logger.info("No SOCKS5 proxy configured, using direct connection")
                 self.client = OpenAI(api_key=api_key)
 
+        # Prompt cache
+        self._prompt_cache: Dict[str, str] = {}
+        self._cache_expires_at: Optional[datetime] = None
+        self._cache_ttl = 300  # 5 minutes TTL
+
+    async def _get_prompt(self, key: str) -> Optional[str]:
+        """Get prompt from cache or database"""
+        # Check if cache is expired
+        if self._cache_expires_at and datetime.utcnow() > self._cache_expires_at:
+            self._prompt_cache = {}
+            self._cache_expires_at = None
+            logger.info("Prompt cache expired, cleared")
+
+        # Return from cache if available
+        if key in self._prompt_cache:
+            return self._prompt_cache[key]
+
+        # Load from database
+        try:
+            row = await db.fetchrow(
+                "SELECT prompt_text FROM ai_prompts WHERE key = $1 AND is_active = TRUE",
+                key
+            )
+            if row:
+                prompt = row['prompt_text']
+                self._prompt_cache[key] = prompt
+                # Set cache expiration on first load
+                if not self._cache_expires_at:
+                    self._cache_expires_at = datetime.utcnow() + timedelta(seconds=self._cache_ttl)
+                return prompt
+            else:
+                logger.warning(f"Prompt with key '{key}' not found in database")
+                return None
+        except Exception as e:
+            logger.error(f"Error loading prompt from database: {e}")
+            return None
+
     async def get_admin_response(self, question: str, user_context: Dict[str, Any]) -> str:
         """Generate Administrator persona response - emotional, helpful, playful"""
         if not self.client:
-            return self._admin_stub(question)
+            return await self._admin_stub(question)
 
         try:
             # Build persona prompt for Administrator
             age = user_context.get('age', 25)
             gender = user_context.get('gender', 'other')
 
-            system_prompt = self._build_admin_system_prompt(age, gender)
+            system_prompt = await self._build_admin_system_prompt(age, gender)
 
             result = self.client.chat.completions.create(
                 model="gpt-4o",
@@ -76,15 +116,15 @@ class AIClient:
 
         except Exception as e:
             logger.error(f"Error getting admin AI response: {e}")
-            return self._admin_stub(question)
+            return await self._admin_stub(question)
 
     async def get_oracle_response(self, question: str, user_context: Dict[str, Any]) -> str:
         """Generate Oracle persona response - wise, profound, serious"""
         if not self.client:
-            return self._oracle_stub(question)
+            return await self._oracle_stub(question)
 
         try:
-            system_prompt = self._build_oracle_system_prompt()
+            system_prompt = await self._build_oracle_system_prompt()
 
             result = self.client.chat.completions.create(
                 model="gpt-4o",
@@ -113,16 +153,16 @@ class AIClient:
 
         except Exception as e:
             logger.error(f"Error getting oracle AI response: {e}")
-            return self._oracle_stub(question)
+            return await self._oracle_stub(question)
 
     async def get_oracle_response_stream(self, question: str, user_context: Dict[str, Any]) -> AsyncGenerator[str, None]:
         """Generate Oracle persona response with streaming - yields text chunks"""
         if not self.client:
-            yield self._oracle_stub(question)
+            yield await self._oracle_stub(question)
             return
 
         try:
-            system_prompt = self._build_oracle_system_prompt()
+            system_prompt = await self._build_oracle_system_prompt()
 
             stream = self.client.chat.completions.create(
                 model="gpt-4o",
@@ -151,10 +191,38 @@ class AIClient:
 
         except Exception as e:
             logger.error(f"Error getting oracle AI streaming response: {e}")
-            yield self._oracle_stub(question)
+            yield await self._oracle_stub(question)
 
-    def _build_admin_system_prompt(self, age: int, gender: str) -> str:
-        """Build system prompt for Administrator persona"""
+    async def _build_admin_system_prompt(self, age: int, gender: str) -> str:
+        """Build system prompt for Administrator persona from database"""
+        try:
+            # Get base prompt
+            base_prompt = await self._get_prompt('admin_base')
+            if not base_prompt:
+                logger.error("Admin base prompt not found, using hardcoded fallback")
+                return self._hardcoded_admin_prompt(age)
+
+            # Get age-specific tone
+            if age <= 25:
+                tone = await self._get_prompt('admin_tone_young')
+            elif age >= 46:
+                tone = await self._get_prompt('admin_tone_senior')
+            else:
+                tone = await self._get_prompt('admin_tone_middle')
+
+            if not tone:
+                logger.warning("Admin tone prompt not found, using default")
+                tone = "ТОНАЛЬНОСТЬ: Держи баланс - дружелюбно, но не слишком игриво. Умеренное количество эмодзи."
+
+            # Combine prompts
+            return f"{base_prompt}\n\n{tone}"
+
+        except Exception as e:
+            logger.error(f"Error building admin prompt from DB: {e}")
+            return self._hardcoded_admin_prompt(age)
+
+    def _hardcoded_admin_prompt(self, age: int) -> str:
+        """Hardcoded fallback for admin prompt"""
         tone_guide = ""
         if age <= 25:
             tone_guide = "Будь игривой, используй эмодзи, молодежный сленг. Можешь быть чуть капризной или кокетливой."
@@ -186,8 +254,21 @@ class AIClient:
 
 Отвечай на русском языке."""
 
-    def _build_oracle_system_prompt(self) -> str:
-        """Build system prompt for Oracle persona"""
+    async def _build_oracle_system_prompt(self) -> str:
+        """Build system prompt for Oracle persona from database"""
+        try:
+            prompt = await self._get_prompt('oracle_system')
+            if prompt:
+                return prompt
+            else:
+                logger.error("Oracle system prompt not found, using hardcoded fallback")
+                return self._hardcoded_oracle_prompt()
+        except Exception as e:
+            logger.error(f"Error building oracle prompt from DB: {e}")
+            return self._hardcoded_oracle_prompt()
+
+    def _hardcoded_oracle_prompt(self) -> str:
+        """Hardcoded fallback for oracle prompt"""
         return """Ты - Оракул в Bot Oracle. Твоя роль:
 
 ЛИЧНОСТЬ:
@@ -215,12 +296,26 @@ class AIClient:
 
 Отвечай на русском языке."""
 
-    def _admin_stub(self, question: str) -> str:
-        """Fallback stub for Administrator"""
+    async def _admin_stub(self, question: str) -> str:
+        """Fallback stub for Administrator from database or hardcoded"""
+        try:
+            template = await self._get_prompt('admin_fallback')
+            if template:
+                return template.replace('{question}', question[:80])
+        except Exception as e:
+            logger.error(f"Error getting admin fallback: {e}")
+
         return f"Я услышала тебя и вот мой короткий ответ: {question[:80]}… 🌟"
 
-    def _oracle_stub(self, question: str) -> str:
-        """Fallback stub for Oracle"""
+    async def _oracle_stub(self, question: str) -> str:
+        """Fallback stub for Oracle from database or hardcoded"""
+        try:
+            template = await self._get_prompt('oracle_fallback')
+            if template:
+                return template.replace('{question}', question[:120])
+        except Exception as e:
+            logger.error(f"Error getting oracle fallback: {e}")
+
         return f"Мой персональный ответ для тебя: {question[:120]}… (мудрость требует времени для размышлений)"
 
 # Global AI client instance
