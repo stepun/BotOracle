@@ -232,6 +232,66 @@ document.querySelectorAll('[data-filter-sub]').forEach(btn => {
     });
 });
 
+// CRM Test handler
+document.getElementById('testCrmBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('testCrmBtn');
+    const resultsDiv = document.getElementById('crmTestResults');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Тестируем...';
+    resultsDiv.style.display = 'none';
+
+    try {
+        const response = await fetch(`${API_URL}/admin/test/crm`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            resultsDiv.innerHTML = `
+                <h4 class="success">✅ CRM Тест Успешно</h4>
+                <div class="result-item">
+                    <strong>Admin ID:</strong> ${data.admin_id}
+                </div>
+                <div class="result-item">
+                    <strong>Planner:</strong> Создано задач: ${data.planner.tasks_created}
+                    <br>
+                    ${data.planner.created_tasks.map(t =>
+                        `<div style="margin-left: 10px; margin-top: 5px;">• ${t.type} - ${new Date(t.due_at).toLocaleString()}</div>`
+                    ).join('')}
+                </div>
+                <div class="result-item">
+                    <strong>Dispatcher:</strong>
+                    <br>• Отправлено: ${data.dispatcher.sent}
+                    <br>• Ошибки: ${data.dispatcher.failed}
+                    <br>• Заблокировано: ${data.dispatcher.blocked}
+                </div>
+            `;
+            resultsDiv.style.display = 'block';
+        } else {
+            resultsDiv.innerHTML = `
+                <h4 class="error">❌ Ошибка теста</h4>
+                <div class="result-item">${data.message || 'Unknown error'}</div>
+            `;
+            resultsDiv.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error testing CRM:', error);
+        resultsDiv.innerHTML = `
+            <h4 class="error">❌ Ошибка</h4>
+            <div class="result-item">${error.message}</div>
+        `;
+        resultsDiv.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🧪 Тест CRM';
+    }
+});
+
 // Initial load with access verification
 (async function() {
     const hasAccess = await verifyAccess();

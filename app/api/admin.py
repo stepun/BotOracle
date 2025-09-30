@@ -525,3 +525,84 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service unhealthy")
+
+@router.post("/admin/test/crm")
+async def test_crm_for_admin(_: bool = Depends(verify_admin_token)):
+    """Test CRM system for admin user"""
+    try:
+        from app.crm.planner import crm_planner
+        from app.crm.dispatcher import crm_dispatcher
+
+        if not crm_dispatcher:
+            return {
+                "status": "error",
+                "message": "CRM dispatcher not initialized"
+            }
+
+        # Get admin user from config
+        admin_id = config.ADMIN_IDS[0] if config.ADMIN_IDS else None
+        if not admin_id:
+            return {
+                "status": "error",
+                "message": "No admin ID configured"
+            }
+
+        # Get admin user data
+        user_row = await db.fetchrow(
+            """
+            SELECT id, tg_user_id, username, age, gender, last_seen_at, free_questions_left
+            FROM users
+            WHERE tg_user_id = $1
+            """,
+            admin_id
+        )
+
+        if not user_row:
+            return {
+                "status": "error",
+                "message": f"Admin user {admin_id} not found in database"
+            }
+
+        user_data = dict(user_row)
+
+        # Test 1: CRM Planner
+        logger.info(f"Testing CRM planner for admin {admin_id}")
+        tasks_created = await crm_planner.plan_for_user(user_data)
+
+        # Get created tasks
+        created_tasks = await db.fetch(
+            """
+            SELECT id, type, due_at, status
+            FROM admin_tasks
+            WHERE user_id = $1 AND status = 'pending'
+            ORDER BY due_at DESC
+            LIMIT 10
+            """,
+            user_data['id']
+        )
+
+        # Test 2: CRM Dispatcher
+        logger.info(f"Testing CRM dispatcher for admin {admin_id}")
+        dispatch_stats = await crm_dispatcher.dispatch_due_tasks(limit=5)
+
+        return {
+            "status": "success",
+            "admin_id": admin_id,
+            "planner": {
+                "tasks_created": tasks_created,
+                "created_tasks": [
+                    {
+                        "id": t['id'],
+                        "type": t['type'],
+                        "due_at": t['due_at'].isoformat(),
+                        "status": t['status']
+                    } for t in created_tasks
+                ]
+            },
+            "dispatcher": dispatch_stats,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error testing CRM: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
