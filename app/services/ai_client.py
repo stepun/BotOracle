@@ -1,5 +1,5 @@
 """
-AI Client Service - GPT-5 integration for Bot Oracle
+AI Client Service - GPT-4o integration for Bot Oracle
 Handles both Administrator and Oracle persona responses
 """
 import os
@@ -32,15 +32,17 @@ class AIClient:
 
             system_prompt = self._build_admin_system_prompt(age, gender)
 
-            result = self.client.responses.create(
-                model="gpt-5",
-                input=f"Пользователь спрашивает: {question}",
-                reasoning={"effort": "medium"},
-                text={"verbosity": "medium"},
-                system=system_prompt
+            result = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Пользователь спрашивает: {question}"}
+                ],
+                temperature=0.8,
+                max_tokens=200
             )
 
-            response = result.output_text.strip()
+            response = result.choices[0].message.content.strip()
 
             # Ensure response isn't too long (max 300 chars for admin)
             if len(response) > 300:
@@ -61,15 +63,17 @@ class AIClient:
         try:
             system_prompt = self._build_oracle_system_prompt()
 
-            result = self.client.responses.create(
-                model="gpt-5",
-                input=f"Вопрос для размышления: {question}",
-                reasoning={"effort": "high"},
-                text={"verbosity": "high"},
-                system=system_prompt
+            result = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Вопрос для размышления: {question}"}
+                ],
+                temperature=0.7,
+                max_tokens=400
             )
 
-            response = result.output_text.strip()
+            response = result.choices[0].message.content.strip()
 
             # Oracle responses can be longer (max 500 chars)
             if len(response) > 500:
