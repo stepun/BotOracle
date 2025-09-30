@@ -129,7 +129,7 @@ class SubscriptionModel:
     @staticmethod
     async def create_subscription(user_id: int, plan_code: str, amount: float,
                                 inv_id: int = None) -> int:
-        days = 7 if plan_code == 'WEEK' else 30
+        days = 1 if plan_code == 'DAY' else (7 if plan_code == 'WEEK' else 30)
 
         subscription_id = await db.fetchval(
             """
@@ -150,7 +150,7 @@ class SubscriptionModel:
 
     @staticmethod
     async def extend_subscription(user_id: int, plan_code: str, amount: float):
-        days = 7 if plan_code == 'WEEK' else 30
+        days = 1 if plan_code == 'DAY' else (7 if plan_code == 'WEEK' else 30)
 
         await db.execute(
             """
