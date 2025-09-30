@@ -484,17 +484,70 @@ async def get_subscriptions(
 
 @router.get("/admin/dashboard")
 async def get_dashboard(_: bool = Depends(verify_admin_token)):
-    """Get dashboard summary"""
+    """Get dashboard summary with extended metrics"""
     try:
-        # Get counts
+        # Total users
         total_users = await db.fetchval("SELECT COUNT(*) FROM users")
-        active_subs = await db.fetchval("SELECT COUNT(*) FROM subscriptions WHERE status = 'active' AND ends_at > now()")
-        today_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE DATE(started_at) = CURRENT_DATE")
+
+        # Active users (last seen today/week)
+        active_today = await db.fetchval(
+            "SELECT COUNT(*) FROM users WHERE DATE(last_seen_at) = CURRENT_DATE"
+        )
+        active_week = await db.fetchval(
+            "SELECT COUNT(*) FROM users WHERE last_seen_at > now() - interval '7 days'"
+        )
+
+        # New users
+        new_today = await db.fetchval(
+            "SELECT COUNT(*) FROM users WHERE DATE(first_seen_at) = CURRENT_DATE"
+        )
+        new_week = await db.fetchval(
+            "SELECT COUNT(*) FROM users WHERE first_seen_at > now() - interval '7 days'"
+        )
+        new_month = await db.fetchval(
+            "SELECT COUNT(*) FROM users WHERE first_seen_at > now() - interval '30 days'"
+        )
+
+        # Subscriptions
+        active_subs = await db.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE status = 'active' AND ends_at > now()"
+        )
+
+        # Subscriptions by plan
+        subs_by_plan = await db.fetch(
+            """
+            SELECT plan_code, COUNT(*) as count
+            FROM subscriptions
+            WHERE status = 'active' AND ends_at > now()
+            GROUP BY plan_code
+            """
+        )
+
+        # Revenue
+        today_revenue = await db.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE DATE(started_at) = CURRENT_DATE"
+        )
+        month_revenue = await db.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM subscriptions WHERE started_at > now() - interval '30 days'"
+        )
+
+        # Payments today
+        payments_today = await db.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE DATE(started_at) = CURRENT_DATE"
+        )
 
         return {
             'total_users': total_users,
+            'active_today': active_today,
+            'active_week': active_week,
+            'new_today': new_today,
+            'new_week': new_week,
+            'new_month': new_month,
             'active_subscriptions': active_subs,
+            'subscriptions_by_plan': {row['plan_code']: row['count'] for row in subs_by_plan},
             'today_revenue': float(today_revenue) if today_revenue else 0,
+            'month_revenue': float(month_revenue) if month_revenue else 0,
+            'payments_today': payments_today,
             'timestamp': datetime.now().isoformat()
         }
 

@@ -74,9 +74,14 @@ async function loadDashboard() {
         });
         const data = await response.json();
 
-        document.getElementById('totalUsers').textContent = data.total_users;
-        document.getElementById('activeSubs').textContent = data.active_subscriptions;
-        document.getElementById('todayRevenue').textContent = `${data.today_revenue.toFixed(0)}₽`;
+        document.getElementById('totalUsers').textContent = data.total_users || 0;
+        document.getElementById('activeToday').textContent = data.active_today || 0;
+        document.getElementById('activeWeek').textContent = data.active_week || 0;
+        document.getElementById('newToday').textContent = data.new_today || 0;
+        document.getElementById('activeSubs').textContent = data.active_subscriptions || 0;
+        document.getElementById('todayRevenue').textContent = `${(data.today_revenue || 0).toFixed(0)}₽`;
+        document.getElementById('monthRevenue').textContent = `${(data.month_revenue || 0).toFixed(0)}₽`;
+        document.getElementById('paymentsToday').textContent = data.payments_today || 0;
     } catch (error) {
         console.error('Error loading dashboard:', error);
     }
