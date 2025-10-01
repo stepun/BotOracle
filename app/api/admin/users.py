@@ -41,7 +41,9 @@ async def get_users(
                 'is_blocked': row['is_blocked'],
                 'free_questions_left': row['free_questions_left'],
                 'has_subscription': row['subscription_end'] is not None,
-                'subscription_end': row['subscription_end'].isoformat() if row['subscription_end'] else None
+                'subscription_end': row['subscription_end'].isoformat() if row['subscription_end'] else None,
+                'admin_thread_id': row.get('admin_thread_id'),
+                'oracle_thread_id': row.get('oracle_thread_id')
             })
 
         return {
@@ -137,7 +139,9 @@ async def get_user_details(
                 'is_blocked': user['is_blocked'],
                 'free_questions_left': user['free_questions_left'],
                 'has_subscription': user['subscription_end'] is not None,
-                'subscription_end': user['subscription_end'].isoformat() if user['subscription_end'] else None
+                'subscription_end': user['subscription_end'].isoformat() if user['subscription_end'] else None,
+                'admin_thread_id': user.get('admin_thread_id'),
+                'oracle_thread_id': user.get('oracle_thread_id')
             },
             'daily_messages': [{
                 'date': msg['sent_date'].isoformat()
@@ -171,4 +175,61 @@ async def get_user_details(
         raise
     except Exception as e:
         logger.error(f"Error getting user details: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/admin/sessions")
+async def get_ai_sessions(
+    _: bool = Depends(verify_admin_token)
+):
+    """Get all active AI sessions (threads)"""
+    try:
+        # Get users with active threads
+        rows = await db.fetch(
+            """
+            SELECT u.id, u.tg_user_id, u.username, u.age, u.gender,
+                   u.admin_thread_id, u.oracle_thread_id, u.last_seen_at,
+                   s.ends_at as subscription_end
+            FROM users u
+            LEFT JOIN subscriptions s ON s.user_id = u.id
+                AND s.status = 'active' AND s.ends_at > now()
+            WHERE u.admin_thread_id IS NOT NULL OR u.oracle_thread_id IS NOT NULL
+            ORDER BY u.last_seen_at DESC
+            LIMIT 100
+            """
+        )
+
+        sessions = []
+        for row in rows:
+            session_info = {
+                'user_id': row['id'],
+                'tg_user_id': row['tg_user_id'],
+                'username': row['username'],
+                'age': row['age'],
+                'gender': row['gender'],
+                'last_seen_at': row['last_seen_at'].isoformat() if row['last_seen_at'] else None,
+                'has_subscription': row['subscription_end'] is not None,
+                'threads': []
+            }
+
+            if row['admin_thread_id']:
+                session_info['threads'].append({
+                    'persona': 'admin',
+                    'thread_id': row['admin_thread_id']
+                })
+
+            if row['oracle_thread_id']:
+                session_info['threads'].append({
+                    'persona': 'oracle',
+                    'thread_id': row['oracle_thread_id']
+                })
+
+            sessions.append(session_info)
+
+        return {
+            'sessions': sessions,
+            'total': len(sessions)
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting AI sessions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

@@ -345,6 +345,21 @@ async function showUserDetails(userId) {
                     <div><strong>Gender:</strong> ${user.gender || '-'}</div>
                     <div><strong>Free Questions:</strong> ${user.free_questions_left}</div>
                     <div><strong>Subscription:</strong> ${user.has_subscription ? `Active until ${formatDate(user.subscription_end)}` : 'None'}</div>
+                    ${user.admin_thread_id || user.oracle_thread_id ? `
+                        <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 6px; border-left: 4px solid #0ea5e9;">
+                            <strong>🧠 AI Sessions:</strong>
+                            ${user.admin_thread_id ? `
+                                <div style="margin-top: 6px; font-size: 12px;">
+                                    <strong>🎭 Admin:</strong> <code style="font-size: 11px; color: #6b7280;">${user.admin_thread_id}</code>
+                                </div>
+                            ` : ''}
+                            ${user.oracle_thread_id ? `
+                                <div style="margin-top: 6px; font-size: 12px;">
+                                    <strong>🔮 Oracle:</strong> <code style="font-size: 11px; color: #6b7280;">${user.oracle_thread_id}</code>
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
                 </div>
             </div>
 
@@ -1296,6 +1311,72 @@ function closePromptModal() {
     document.getElementById('promptModal').style.display = 'none';
 }
 
+// Load AI sessions
+async function loadSessions() {
+    try {
+        const response = await fetch(`${API_URL}/admin/sessions`, {
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+        const data = await response.json();
+
+        const sessionsList = document.getElementById('sessionsList');
+
+        if (!data.sessions || data.sessions.length === 0) {
+            sessionsList.innerHTML = '<div class="empty-state">No active AI sessions</div>';
+            return;
+        }
+
+        let html = '';
+        data.sessions.forEach(session => {
+            const threadsHtml = session.threads.map(t => {
+                const personaEmoji = t.persona === 'admin' ? '🎭' : '🔮';
+                const personaColor = t.persona === 'admin' ? '#10b981' : '#8b5cf6';
+                return `
+                    <div style="margin-top: 8px; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${personaColor};">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <span style="font-size: 16px;">${personaEmoji}</span>
+                            <strong style="text-transform: capitalize; font-size: 13px;">${t.persona}</strong>
+                        </div>
+                        <code style="font-size: 11px; color: #6b7280; word-break: break-all;">${t.thread_id}</code>
+                    </div>
+                `;
+            }).join('');
+
+            html += `
+                <div class="list-item">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">
+                                ${session.username || 'Unknown'}
+                                ${session.has_subscription ? '<span style="color: #10b981;">💎</span>' : ''}
+                            </div>
+                            <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">
+                                ID: ${session.user_id} | TG: ${session.tg_user_id}
+                                ${session.age ? ` | Age: ${session.age}` : ''}
+                                ${session.gender ? ` | ${session.gender}` : ''}
+                            </div>
+                            <div style="font-size: 12px; color: #9ca3af;">
+                                Last seen: ${session.last_seen_at ? new Date(session.last_seen_at).toLocaleString() : 'Never'}
+                            </div>
+                            ${threadsHtml}
+                        </div>
+                        <button onclick="showUserDetails(${session.user_id})" style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-left: 12px;">
+                            View User
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        sessionsList.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading sessions:', error);
+        document.getElementById('sessionsList').innerHTML = '<div class="error">Error loading sessions</div>';
+    }
+}
+
 // Initial load with access verification
 (async function() {
     const hasAccess = await verifyAccess();
@@ -1321,6 +1402,8 @@ function closePromptModal() {
                 loadDailyMessages();
             } else if (activeTab === 'prompts') {
                 loadPrompts(currentPromptFilter);
+            } else if (activeTab === 'sessions') {
+                loadSessions();
             }
         }, 30000);
     }
