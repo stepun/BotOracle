@@ -19,8 +19,8 @@ from app.bot.states import OnboardingStates, OracleQuestionStates
 logger = logging.getLogger(__name__)
 router = Router()
 
-# AI integration
-from app.services.ai_client import call_admin_ai, call_oracle_ai, call_oracle_ai_stream
+# AI integration - using router to switch between implementations
+from app.services.ai_router import call_admin_ai, call_oracle_ai, call_oracle_ai_stream
 import asyncio
 
 @router.message(F.text == "📨 Сообщение дня")
@@ -78,7 +78,7 @@ async def daily_message_handler(message: types.Message):
 - Без эмодзи (их добавит персона)"""
 
         # Generate message using Administrator AI
-        user_context = {'age': age, 'gender': gender}
+        user_context = {'age': age, 'gender': gender, 'user_id': user['id']}
         ai_message = await call_admin_ai(prompt, user_context)
 
         # Send generated message
@@ -280,7 +280,7 @@ async def question_handler(message: types.Message, state: FSMContext):
                 return
 
             # Call Oracle AI with streaming (wise, profound response)
-            user_context = {'age': user.get('age'), 'gender': user.get('gender')}
+            user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'user_id': user['id']}
 
             # Send initial message
             oracle_msg = await message.answer("🔮 **Оракул размышляет...**", parse_mode="Markdown")
@@ -329,7 +329,7 @@ async def question_handler(message: types.Message, state: FSMContext):
 
             if subscription:
                 # Subscriber asking question to Admin (not Oracle) - NO counter used
-                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': True}
+                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': True, 'user_id': user['id']}
                 answer = await call_admin_ai(question, user_context)
 
                 # Save question without counter (source is still tracked for analytics)
@@ -360,7 +360,7 @@ async def question_handler(message: types.Message, state: FSMContext):
                     return
 
                 # Call Administrator AI (emotional, helpful response)
-                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False}
+                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False, 'user_id': user['id']}
                 answer = await call_admin_ai(question, user_context)
 
                 # Save question and answer
