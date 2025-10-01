@@ -3,8 +3,9 @@ Bot Oracle main handlers implementing two-role system:
 1. Administrator - emotional, proactive, handles daily messages and free questions
 2. Oracle - wise, calm, answers only subscription questions (10/day limit)
 """
-from aiogram import Router, types, F
+from aiogram import Router, types, F, Bot
 from aiogram.fsm.context import FSMContext
+from aiogram.enums import ChatAction
 from datetime import date
 import logging
 
@@ -76,6 +77,9 @@ async def daily_message_handler(message: types.Message):
 - Без банальностей
 - На русском языке
 - Без эмодзи (их добавит персона)"""
+
+        # Show typing status while generating
+        await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
         # Generate message using Administrator AI
         user_context = {'age': age, 'gender': gender, 'user_id': user['id']}
@@ -329,6 +333,9 @@ async def question_handler(message: types.Message, state: FSMContext):
 
             if subscription:
                 # Subscriber asking question to Admin (not Oracle) - NO counter used
+                # Show typing status while generating
+                await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+
                 user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': True, 'user_id': user['id']}
                 answer = await call_admin_ai(question, user_context)
 
@@ -358,6 +365,9 @@ async def question_handler(message: types.Message, state: FSMContext):
                 if not success:
                     await message.answer(persona.wrap("упс, что-то пошло не так. попробуй ещё раз"))
                     return
+
+                # Show typing status while generating
+                await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
                 # Call Administrator AI (emotional, helpful response)
                 user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False, 'user_id': user['id']}
