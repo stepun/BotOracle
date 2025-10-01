@@ -346,16 +346,16 @@ async function showUserDetails(userId) {
                     <div><strong>Free Questions:</strong> ${user.free_questions_left}</div>
                     <div><strong>Subscription:</strong> ${user.has_subscription ? `Active until ${formatDate(user.subscription_end)}` : 'None'}</div>
                     ${user.admin_thread_id || user.oracle_thread_id ? `
-                        <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 6px; border-left: 4px solid #0ea5e9;">
+                        <div style="margin-top: 12px; padding: 12px; background: var(--tg-theme-secondary-bg-color, #f0f0f0); border-radius: 6px; border-left: 4px solid var(--tg-theme-button-color, #3390ec);">
                             <strong>🧠 AI Sessions:</strong>
                             ${user.admin_thread_id ? `
                                 <div style="margin-top: 6px; font-size: 12px;">
-                                    <strong>🎭 Admin:</strong> <code style="font-size: 11px; color: #6b7280;">${user.admin_thread_id}</code>
+                                    <strong>🎭 Admin:</strong> <code style="font-size: 11px; opacity: 0.7;">${user.admin_thread_id}</code>
                                 </div>
                             ` : ''}
                             ${user.oracle_thread_id ? `
                                 <div style="margin-top: 6px; font-size: 12px;">
-                                    <strong>🔮 Oracle:</strong> <code style="font-size: 11px; color: #6b7280;">${user.oracle_thread_id}</code>
+                                    <strong>🔮 Oracle:</strong> <code style="font-size: 11px; opacity: 0.7;">${user.oracle_thread_id}</code>
                                 </div>
                             ` : ''}
                         </div>
@@ -1332,14 +1332,13 @@ async function loadSessions() {
         data.sessions.forEach(session => {
             const threadsHtml = session.threads.map(t => {
                 const personaEmoji = t.persona === 'admin' ? '🎭' : '🔮';
-                const personaColor = t.persona === 'admin' ? '#10b981' : '#8b5cf6';
                 return `
-                    <div style="margin-top: 8px; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${personaColor};">
+                    <div style="margin-top: 8px; padding: 8px; background: var(--tg-theme-bg-color, #fff); border-radius: 6px; border-left: 3px solid var(--tg-theme-button-color, #3390ec);">
                         <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
                             <span style="font-size: 16px;">${personaEmoji}</span>
                             <strong style="text-transform: capitalize; font-size: 13px;">${t.persona}</strong>
                         </div>
-                        <code style="font-size: 11px; color: #6b7280; word-break: break-all;">${t.thread_id}</code>
+                        <code style="font-size: 11px; opacity: 0.6; word-break: break-all;">${t.thread_id}</code>
                     </div>
                 `;
             }).join('');
@@ -1352,17 +1351,17 @@ async function loadSessions() {
                                 ${session.username || 'Unknown'}
                                 ${session.has_subscription ? '<span style="color: #10b981;">💎</span>' : ''}
                             </div>
-                            <div style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">
+                            <div style="font-size: 13px; opacity: 0.7; margin-bottom: 8px;">
                                 ID: ${session.user_id} | TG: ${session.tg_user_id}
                                 ${session.age ? ` | Age: ${session.age}` : ''}
                                 ${session.gender ? ` | ${session.gender}` : ''}
                             </div>
-                            <div style="font-size: 12px; color: #9ca3af;">
+                            <div style="font-size: 12px; opacity: 0.6;">
                                 Last seen: ${session.last_seen_at ? new Date(session.last_seen_at).toLocaleString() : 'Never'}
                             </div>
                             ${threadsHtml}
                         </div>
-                        <button onclick="showUserDetails(${session.user_id})" style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-left: 12px;">
+                        <button onclick="showUserDetails(${session.user_id})" style="padding: 6px 12px; background: var(--tg-theme-button-color, #3390ec); color: var(--tg-theme-button-text-color, #fff); border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-left: 12px;">
                             View User
                         </button>
                     </div>
