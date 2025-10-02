@@ -390,18 +390,18 @@ async def question_handler(message: types.Message, state: FSMContext):
                     )
                     return
 
-                # Use one free question
-                success = await UserModel.use_free_question(user['id'])
-                if not success:
-                    await message.answer(persona.wrap("упс, что-то пошло не так. попробуй ещё раз"))
-                    return
-
                 # Show typing status while generating
                 await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
                 # Call Administrator AI (emotional, helpful response)
                 user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False, 'user_id': user['id']}
                 answer = await call_admin_ai(question, user_context)
+
+                # Use one free question AFTER successful AI response
+                success = await UserModel.use_free_question(user['id'])
+                if not success:
+                    await message.answer(persona.wrap("упс, что-то пошло не так. попробуй ещё раз"))
+                    return
 
                 # Save question and answer
                 await OracleQuestionModel.save_question(
