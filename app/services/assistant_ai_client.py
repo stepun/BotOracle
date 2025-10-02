@@ -232,9 +232,10 @@ class AssistantAIClient:
             age = user_context.get('age', 25)
             gender = user_context.get('gender', 'other')
             has_subscription = user_context.get('has_subscription', False)
+            free_chat = user_context.get('free_chat', False)
 
             # Build contextualized message
-            context_prefix = self._build_admin_context(age, gender, has_subscription)
+            context_prefix = self._build_admin_context(age, gender, has_subscription, free_chat)
             full_message = f"{context_prefix}\n\nВопрос пользователя: {question}"
 
             # Add message to thread
@@ -358,7 +359,7 @@ class AssistantAIClient:
 
         raise TimeoutError(f"Run {run_id} did not complete within {timeout} seconds")
 
-    def _build_admin_context(self, age: int, gender: str, has_subscription: bool) -> str:
+    def _build_admin_context(self, age: int, gender: str, has_subscription: bool, free_chat: bool = False) -> str:
         """Build context information for Admin"""
         tone = ""
         if age <= 25:
@@ -369,7 +370,9 @@ class AssistantAIClient:
             tone = "Дружелюбно, умеренное количество эмодзи."
 
         selling = ""
-        if has_subscription:
+        if free_chat:
+            selling = "Просто помогай и общайся. НЕ упоминай счетчики вопросов или лимиты."
+        elif has_subscription:
             selling = "Для глубоких вопросов можешь намекнуть на кнопку '🔮 Задать вопрос Оракулу'."
         else:
             selling = "Можешь иногда намекнуть на подписку к Оракулу для серьезных вопросов."

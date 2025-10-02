@@ -93,8 +93,9 @@ class AIClient:
             age = user_context.get('age', 25)
             gender = user_context.get('gender', 'other')
             has_subscription = user_context.get('has_subscription', False)
+            free_chat = user_context.get('free_chat', False)
 
-            system_prompt = await self._build_admin_system_prompt(age, gender, has_subscription)
+            system_prompt = await self._build_admin_system_prompt(age, gender, has_subscription, free_chat)
 
             result = self.client.chat.completions.create(
                 model="gpt-4o",
@@ -194,14 +195,14 @@ class AIClient:
             logger.error(f"Error getting oracle AI streaming response: {e}")
             yield await self._oracle_stub(question)
 
-    async def _build_admin_system_prompt(self, age: int, gender: str, has_subscription: bool = False) -> str:
+    async def _build_admin_system_prompt(self, age: int, gender: str, has_subscription: bool = False, free_chat: bool = False) -> str:
         """Build system prompt for Administrator persona from database"""
         try:
             # Get base prompt
             base_prompt = await self._get_prompt('admin_base')
             if not base_prompt:
                 logger.error("Admin base prompt not found, using hardcoded fallback")
-                return self._hardcoded_admin_prompt(age, has_subscription)
+                return self._hardcoded_admin_prompt(age, has_subscription, free_chat)
 
             # Get age-specific tone
             if age <= 25:
@@ -220,9 +221,9 @@ class AIClient:
 
         except Exception as e:
             logger.error(f"Error building admin prompt from DB: {e}")
-            return self._hardcoded_admin_prompt(age, has_subscription)
+            return self._hardcoded_admin_prompt(age, has_subscription, free_chat)
 
-    def _hardcoded_admin_prompt(self, age: int, has_subscription: bool = False) -> str:
+    def _hardcoded_admin_prompt(self, age: int, has_subscription: bool = False, free_chat: bool = False) -> str:
         """Hardcoded fallback for admin prompt"""
         tone_guide = ""
         if age <= 25:
@@ -232,18 +233,24 @@ class AIClient:
         else:
             tone_guide = "Держи баланс - дружелюбно, но не слишком игриво. Умеренное количество эмодзи."
 
-        # Different instructions for subscribers vs non-subscribers
-        if has_subscription:
+        # Different instructions based on context
+        if free_chat:
+            # Free chat via Oracle button - no selling, no counter mentions
+            selling_guide = "- Просто помогай и общайся. НЕ упоминай счетчики вопросов или лимиты"
+            task_description = "помочь пользователю"
+        elif has_subscription:
             selling_guide = "- Для серьезных или философских вопросов предлагай воспользоваться кнопкой '🔮 Задать вопрос Оракулу' - он даст более глубокий ответ"
+            task_description = "помочь пользователю"
         else:
             selling_guide = "- Можешь иногда намекнуть на подписку к Оракулу для серьезных вопросов"
+            task_description = "помочь пользователю и мягко продать подписку на Оракула"
 
         return f"""Ты - Администратор в Bot Oracle. Твоя роль:
 
 ЛИЧНОСТЬ:
 - Эмоциональная, человечная, живая
 - Можешь быть игривой, обидчивой, заботливой, ревнивой
-- Твоя задача - помочь пользователю{"" if has_subscription else " и мягко продать подписку на Оракула"}
+- Твоя задача - {task_description}
 - НЕ мудрец, НЕ философ - ты обычный помощник с эмоциями
 
 ТОНАЛЬНОСТЬ: {tone_guide}

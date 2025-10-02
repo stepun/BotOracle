@@ -283,7 +283,13 @@ async def question_handler(message: types.Message, state: FSMContext):
             # Show typing status while generating
             await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
-            user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False, 'user_id': user['id']}
+            user_context = {
+                'age': user.get('age'),
+                'gender': user.get('gender'),
+                'has_subscription': False,
+                'free_chat': True,  # Flag to disable counter mentions in AI response
+                'user_id': user['id']
+            }
             answer = await call_admin_ai(question, user_context)
 
             # Save question (track as ADMIN_FREE for analytics)
