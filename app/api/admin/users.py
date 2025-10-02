@@ -233,3 +233,123 @@ async def get_ai_sessions(
     except Exception as e:
         logger.error(f"Error getting AI sessions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.delete("/admin/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    _: bool = Depends(verify_admin_token)
+):
+    """Delete user completely (for testing purposes)"""
+    try:
+        # Check if user exists
+        user = await db.fetchrow("SELECT id, tg_user_id FROM users WHERE id = $1", user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Delete all related data
+        await db.execute("DELETE FROM daily_sent WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM oracle_questions WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM payments WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM subscriptions WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM admin_tasks WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM admin_events WHERE user_id = $1", user_id)
+
+        # Finally delete the user
+        await db.execute("DELETE FROM users WHERE id = $1", user_id)
+
+        logger.info(f"User {user_id} (tg_user_id: {user['tg_user_id']}) deleted by admin")
+
+        return {
+            "status": "success",
+            "message": f"User {user['tg_user_id']} deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/admin/users/{user_id}/premium")
+async def add_premium_day(
+    user_id: int,
+    _: bool = Depends(verify_admin_token)
+):
+    """Add 1 day premium subscription to user"""
+    try:
+        # Check if user exists
+        user = await db.fetchrow("SELECT id, tg_user_id, username FROM users WHERE id = $1", user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Check if user already has active subscription
+        existing_sub = await db.fetchrow(
+            """
+            SELECT id, ends_at FROM subscriptions
+            WHERE user_id = $1 AND status = 'active' AND ends_at > now()
+            ORDER BY ends_at DESC
+            LIMIT 1
+            """,
+            user_id
+        )
+
+        if existing_sub:
+            # Extend existing subscription by 1 day
+            await db.execute(
+                """
+                UPDATE subscriptions
+                SET ends_at = ends_at + interval '1 day',
+                    updated_at = now()
+                WHERE id = $1
+                """,
+                existing_sub['id']
+            )
+
+            new_end = await db.fetchval(
+                "SELECT ends_at FROM subscriptions WHERE id = $1",
+                existing_sub['id']
+            )
+
+            logger.info(f"Extended subscription for user {user_id} by 1 day, new end: {new_end}")
+
+            return {
+                "status": "success",
+                "message": "Subscription extended by 1 day",
+                "subscription_end": new_end.isoformat()
+            }
+        else:
+            # Create new 1-day subscription
+            await db.execute(
+                """
+                INSERT INTO subscriptions (user_id, plan_code, amount, currency, started_at, ends_at, status, created_at)
+                VALUES ($1, $2, $3, $4, now(), now() + interval '1 day', 'active', now())
+                """,
+                user_id,
+                "admin_test_1d",
+                0.0,
+                "RUB"
+            )
+
+            new_sub = await db.fetchrow(
+                """
+                SELECT ends_at FROM subscriptions
+                WHERE user_id = $1 AND status = 'active'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                user_id
+            )
+
+            logger.info(f"Created 1-day test subscription for user {user_id}, ends: {new_sub['ends_at']}")
+
+            return {
+                "status": "success",
+                "message": "1-day premium subscription added",
+                "subscription_end": new_sub['ends_at'].isoformat()
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding premium day: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

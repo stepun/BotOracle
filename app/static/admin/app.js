@@ -361,6 +361,15 @@ async function showUserDetails(userId) {
                         </div>
                     ` : ''}
                 </div>
+
+                <div style="display: flex; gap: 8px; margin-top: 16px;">
+                    <button onclick="addPremiumDay(${user.id})" class="test-crm-btn" style="flex: 1; background: #4CAF50;">
+                        💎 +1 Day Premium
+                    </button>
+                    <button onclick="deleteUser(${user.id}, ${user.tg_user_id})" class="test-crm-btn" style="flex: 1; background: #f44336;">
+                        🗑️ Delete User
+                    </button>
+                </div>
             </div>
 
             <div class="modal-section">
@@ -416,6 +425,66 @@ async function showUserDetails(userId) {
     } catch (error) {
         console.error('Error loading user details:', error);
         modalBody.innerHTML = '<div class="error">Error loading user details</div>';
+    }
+}
+
+// Delete user
+async function deleteUser(userId, tgUserId) {
+    if (!confirm(`Are you sure you want to DELETE user @${tgUserId}?\n\nThis will:\n- Remove all user data\n- Reset counters\n- Allow them to register again\n\nThis action cannot be undone!`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(`✅ ${data.message}`);
+            closeUserModal();
+            loadUsers(currentUserFilter);
+            loadDashboard();
+        } else {
+            alert(`❌ Error: ${data.detail || 'Failed to delete user'}`);
+        }
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('❌ Error deleting user');
+    }
+}
+
+// Add premium day
+async function addPremiumDay(userId) {
+    if (!confirm('Add 1 day premium subscription to this user?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/admin/users/${userId}/premium`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${ADMIN_TOKEN}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(`✅ ${data.message}\nEnds: ${formatDate(data.subscription_end)}`);
+            // Reload user details
+            showUserDetails(userId);
+            loadDashboard();
+        } else {
+            alert(`❌ Error: ${data.detail || 'Failed to add premium'}`);
+        }
+    } catch (error) {
+        console.error('Error adding premium:', error);
+        alert('❌ Error adding premium');
     }
 }
 
