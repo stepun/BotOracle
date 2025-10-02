@@ -91,11 +91,11 @@ body {
 }
 
 /* Респонсив для мобильных: 2 строки по 4 кнопки */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
     .tab {
-        flex: 0 0 calc(25% - 5px);
-        font-size: 12px;
-        padding: 10px 4px;
+        flex: 0 0 calc((100% - 18px) / 4);
+        font-size: 11px;
+        padding: 8px 2px;
         text-align: center;
     }
 }
