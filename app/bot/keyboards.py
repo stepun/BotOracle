@@ -4,28 +4,17 @@ Keyboards for Bot Oracle
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 def get_main_menu(has_subscription: bool = False) -> ReplyKeyboardMarkup:
-    """Main menu keyboard - different for subscribers and non-subscribers"""
-    if has_subscription:
-        # Subscribers get the Oracle question button
-        return ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="🔮 Задать вопрос Оракулу")],
-                [KeyboardButton(text="📨 Сообщение дня")],
-                [KeyboardButton(text="💎 Подписка"), KeyboardButton(text="ℹ️ Мой статус")],
-            ],
-            resize_keyboard=True,
-            persistent=True
-        )
-    else:
-        # Non-subscribers get standard menu
-        return ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="📨 Сообщение дня")],
-                [KeyboardButton(text="💎 Подписка"), KeyboardButton(text="ℹ️ Мой статус")],
-            ],
-            resize_keyboard=True,
-            persistent=True
-        )
+    """Main menu keyboard - Oracle button available for everyone"""
+    # All users get the Oracle button (behavior differs based on subscription)
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🔮 Задать вопрос Оракулу")],
+            [KeyboardButton(text="📨 Сообщение дня")],
+            [KeyboardButton(text="💎 Подписка"), KeyboardButton(text="ℹ️ Мой статус")],
+        ],
+        resize_keyboard=True,
+        persistent=True
+    )
 
 def get_subscription_menu() -> InlineKeyboardMarkup:
     """Subscription options inline keyboard (old callback version)"""

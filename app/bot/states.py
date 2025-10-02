@@ -10,5 +10,9 @@ class OnboardingStates(StatesGroup):
     completed = State()
 
 class OracleQuestionStates(StatesGroup):
-    """States for Oracle question flow"""
+    """States for Oracle question flow (subscribers only)"""
+    waiting_for_question = State()
+
+class AdminQuestionStates(StatesGroup):
+    """States for Admin question flow (non-subscribers via Oracle button)"""
     waiting_for_question = State()

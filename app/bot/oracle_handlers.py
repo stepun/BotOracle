@@ -15,7 +15,7 @@ from app.database.models import (
 )
 from app.services.persona import persona_factory, get_admin_response
 from app.bot.keyboards import get_main_menu, get_subscription_menu
-from app.bot.states import OnboardingStates, OracleQuestionStates
+from app.bot.states import OnboardingStates, OracleQuestionStates, AdminQuestionStates
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -192,7 +192,7 @@ async def status_handler(message: types.Message):
 
 @router.message(F.text == "🔮 Задать вопрос Оракулу")
 async def oracle_question_button_handler(message: types.Message, state: FSMContext):
-    """Handle Oracle question button - set FSM state for Oracle question"""
+    """Handle Oracle question button - route to Oracle (subscribers) or Admin (non-subscribers)"""
     logger.info(f"Oracle question button pressed by user {message.from_user.id}")
     try:
         user = await UserModel.get_by_tg_id(message.from_user.id)
@@ -211,13 +211,17 @@ async def oracle_question_button_handler(message: types.Message, state: FSMConte
         subscription = await SubscriptionModel.get_active_subscription(user['id'])
 
         if not subscription:
-            # No subscription - show subscription menu
+            # No subscription - route to Admin chat WITHOUT using free questions counter
+            await state.set_state(AdminQuestionStates.waiting_for_question)
+
             await message.answer(
-                persona.wrap("для вопросов Оракулу нужна подписка 💎"),
-                reply_markup=get_subscription_menu()
+                persona.wrap("задавай свой вопрос! 💬\n"
+                           "_этот вопрос не будет использовать твои бесплатные вопросы_"),
+                parse_mode="Markdown"
             )
             return
 
+        # Has subscription - route to Oracle
         # Check daily limit
         oracle_used = await OracleQuestionModel.count_today_questions(user['id'], 'SUB')
 
@@ -272,8 +276,28 @@ async def question_handler(message: types.Message, state: FSMContext):
 
         # Check if user is in Oracle question state (button was pressed)
         is_oracle_question = current_state == OracleQuestionStates.waiting_for_question.state
+        is_admin_question = current_state == AdminQuestionStates.waiting_for_question.state
 
-        if is_oracle_question and subscription:
+        if is_admin_question and not subscription:
+            # ADMIN FREE MODE - non-subscriber asking via Oracle button (NO counter used)
+            # Show typing status while generating
+            await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+
+            user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False, 'user_id': user['id']}
+            answer = await call_admin_ai(question, user_context)
+
+            # Save question (track as ADMIN_FREE for analytics)
+            await OracleQuestionModel.save_question(
+                user['id'], question, answer, source='ADMIN_FREE'
+            )
+
+            # Simple response without counter info
+            await message.answer(answer)
+
+            # Clear FSM state after response
+            await state.clear()
+
+        elif is_oracle_question and subscription:
             # ORACLE MODE - subscription active
             oracle_used = await OracleQuestionModel.count_today_questions(user['id'], 'SUB')
 
