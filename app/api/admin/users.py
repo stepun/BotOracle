@@ -298,8 +298,7 @@ async def add_premium_day(
             await db.execute(
                 """
                 UPDATE subscriptions
-                SET ends_at = ends_at + interval '1 day',
-                    updated_at = now()
+                SET ends_at = ends_at + interval '1 day'
                 WHERE id = $1
                 """,
                 existing_sub['id']
@@ -321,8 +320,8 @@ async def add_premium_day(
             # Create new 1-day subscription
             await db.execute(
                 """
-                INSERT INTO subscriptions (user_id, plan_code, amount, currency, started_at, ends_at, status, created_at)
-                VALUES ($1, $2, $3, $4, now(), now() + interval '1 day', 'active', now())
+                INSERT INTO subscriptions (user_id, plan_code, amount, currency, started_at, ends_at, status)
+                VALUES ($1, $2, $3, $4, now(), now() + interval '1 day', 'active')
                 """,
                 user_id,
                 "admin_test_1d",
@@ -334,7 +333,7 @@ async def add_premium_day(
                 """
                 SELECT ends_at FROM subscriptions
                 WHERE user_id = $1 AND status = 'active'
-                ORDER BY created_at DESC
+                ORDER BY started_at DESC
                 LIMIT 1
                 """,
                 user_id
