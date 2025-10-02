@@ -211,12 +211,22 @@ async def oracle_question_button_handler(message: types.Message, state: FSMConte
         subscription = await SubscriptionModel.get_active_subscription(user['id'])
 
         if not subscription:
-            # No subscription - route to Admin chat WITHOUT using free questions counter
+            # No subscription - use limited questions (5 free)
+            free_left = user.get('free_questions_left', 0)
+
+            if free_left <= 0:
+                # No free questions left
+                await message.answer(
+                    persona.wrap("у тебя закончились бесплатные вопросы 😔\n\n💎 Получи подписку для безлимитного доступа:"),
+                    reply_markup=get_subscription_menu()
+                )
+                return
+
             await state.set_state(AdminQuestionStates.waiting_for_question)
 
             await message.answer(
-                persona.wrap("задавай свой вопрос! 💬\n"
-                           "_этот вопрос не будет использовать твои бесплатные вопросы_"),
+                persona.wrap(f"задавай свой вопрос! 💬\n\n"
+                           f"_У тебя осталось {free_left} {'вопрос' if free_left == 1 else 'вопроса' if free_left < 5 else 'вопросов'} из 5 бесплатных_"),
                 parse_mode="Markdown"
             )
             return
@@ -279,7 +289,19 @@ async def question_handler(message: types.Message, state: FSMContext):
         is_admin_question = current_state == AdminQuestionStates.waiting_for_question.state
 
         if is_admin_question and not subscription:
-            # ADMIN FREE MODE - non-subscriber asking via Oracle button (NO counter used)
+            # ADMIN BUTTON MODE - non-subscriber asking via Oracle button (USES counter)
+            free_left = user.get('free_questions_left', 0)
+
+            if free_left <= 0:
+                # No free questions left
+                exhausted_message = persona.format_free_exhausted()
+                await message.answer(
+                    f"{exhausted_message}\n\n💎 Получи подписку:",
+                    reply_markup=get_subscription_menu()
+                )
+                await state.clear()
+                return
+
             # Show typing status while generating
             await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
@@ -287,18 +309,35 @@ async def question_handler(message: types.Message, state: FSMContext):
                 'age': user.get('age'),
                 'gender': user.get('gender'),
                 'has_subscription': False,
-                'free_chat': True,  # Flag to disable counter mentions in AI response
+                'free_chat': False,
                 'user_id': user['id']
             }
             answer = await call_admin_ai(question, user_context)
 
-            # Save question (track as ADMIN_FREE for analytics)
+            # Use one free question AFTER successful AI response
+            success = await UserModel.use_free_question(user['id'])
+            if not success:
+                await message.answer(persona.wrap("упс, что-то пошло не так. попробуй ещё раз"))
+                await state.clear()
+                return
+
+            # Save question (track as ADMIN_BUTTON for analytics)
             await OracleQuestionModel.save_question(
-                user['id'], question, answer, source='ADMIN_FREE'
+                user['id'], question, answer, source='ADMIN_BUTTON'
             )
 
-            # Simple response without counter info
-            await message.answer(answer)
+            remaining = free_left - 1
+            if remaining > 0:
+                response = persona.format_free_remaining(remaining)
+                full_response = f"{answer}\n\n{response}"
+            else:
+                response = persona.format_free_exhausted()
+                full_response = f"{answer}\n\n{response}\n\n💎 Получи подписку:"
+                await message.answer(full_response, reply_markup=get_subscription_menu())
+                await state.clear()
+                return
+
+            await message.answer(full_response)
 
             # Clear FSM state after response
             await state.clear()
@@ -357,68 +396,28 @@ async def question_handler(message: types.Message, state: FSMContext):
             await state.clear()
 
         else:
-            # ADMINISTRATOR MODE - handle both subscribers and non-subscribers
-            # For subscribers: NO counter decrement (they can chat freely with Admin)
-            # For non-subscribers: use free_questions_left counter
+            # ADMINISTRATOR MODE - ordinary text messages (FREE for everyone, NO counter)
+            # Both subscribers and non-subscribers can chat freely via regular text
 
-            if subscription:
-                # Subscriber asking question to Admin (not Oracle) - NO counter used
-                # Show typing status while generating
-                await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+            # Show typing status while generating
+            await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
-                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': True, 'user_id': user['id']}
-                answer = await call_admin_ai(question, user_context)
+            user_context = {
+                'age': user.get('age'),
+                'gender': user.get('gender'),
+                'has_subscription': subscription is not None,
+                'free_chat': True,  # Free chat - no counter mentions
+                'user_id': user['id']
+            }
+            answer = await call_admin_ai(question, user_context)
 
-                # Save question without counter (source is still tracked for analytics)
-                await OracleQuestionModel.save_question(
-                    user['id'], question, answer, source='ADMIN_CHAT'
-                )
+            # Save question without counter (source is CHAT_FREE for analytics)
+            await OracleQuestionModel.save_question(
+                user['id'], question, answer, source='CHAT_FREE'
+            )
 
-                # Simple response without counter info
-                await message.answer(answer)
-
-            else:
-                # Non-subscriber - use free questions counter
-                free_left = user.get('free_questions_left', 0)
-
-                if free_left <= 0:
-                    # No free questions left
-                    exhausted_message = persona.format_free_exhausted()
-                    await message.answer(
-                        f"{exhausted_message}\n\n💎 Получи подписку:",
-                        reply_markup=get_subscription_menu()
-                    )
-                    return
-
-                # Show typing status while generating
-                await message.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
-
-                # Call Administrator AI (emotional, helpful response)
-                user_context = {'age': user.get('age'), 'gender': user.get('gender'), 'has_subscription': False, 'user_id': user['id']}
-                answer = await call_admin_ai(question, user_context)
-
-                # Use one free question AFTER successful AI response
-                success = await UserModel.use_free_question(user['id'])
-                if not success:
-                    await message.answer(persona.wrap("упс, что-то пошло не так. попробуй ещё раз"))
-                    return
-
-                # Save question and answer
-                await OracleQuestionModel.save_question(
-                    user['id'], question, answer, source='FREE'
-                )
-
-                remaining = free_left - 1
-                if remaining > 0:
-                    response = persona.format_free_remaining(remaining)
-                    full_response = f"{answer}\n\n{response}"
-                else:
-                    response = persona.format_free_exhausted()
-                    full_response = f"{answer}\n\n{response}\n\n💎 Получи подписку:"
-                    await message.answer(full_response, reply_markup=get_subscription_menu())
-                    return
-
-                await message.answer(full_response)
+            # Simple response without counter info
+            await message.answer(answer)
 
         await UserModel.update_last_seen(user['id'])
 
