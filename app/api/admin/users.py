@@ -246,13 +246,15 @@ async def delete_user(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Delete all related data
+        # Delete all related data (most have CASCADE, but delete explicitly for safety)
         await db.execute("DELETE FROM daily_sent WHERE user_id = $1", user_id)
         await db.execute("DELETE FROM oracle_questions WHERE user_id = $1", user_id)
         await db.execute("DELETE FROM payments WHERE user_id = $1", user_id)
         await db.execute("DELETE FROM subscriptions WHERE user_id = $1", user_id)
         await db.execute("DELETE FROM admin_tasks WHERE user_id = $1", user_id)
-        await db.execute("DELETE FROM admin_events WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM events WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM contact_cadence WHERE user_id = $1", user_id)
+        await db.execute("DELETE FROM user_prefs WHERE user_id = $1", user_id)
 
         # Finally delete the user
         await db.execute("DELETE FROM users WHERE id = $1", user_id)
